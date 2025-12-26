@@ -1,0 +1,23 @@
+{
+  "name": "STM32RS485DMA",
+  "version": "0.5.0",
+  "description": "DMA-based RS485 driver for STM32 Arduino boards using UART + DMA.",
+  "keywords": [
+    "RS485",
+    "DMA",
+    "STM32",
+    "UART",
+    "Industrial",
+    "Opta"
+  ],
+  "authors": {
+    "name": "NitrofMtl"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nitrofmtl/STM32RS485DMA"
+  },
+  "frameworks": ["arduino"],
+  "platforms": ["ststm32"],
+  "license": "MIT"
+}
