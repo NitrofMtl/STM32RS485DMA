@@ -495,7 +495,7 @@ void RS485DMAClass::setupUsart(uint32_t baudrate)
 bool RS485DMAClass::initDMA(uint16_t config)
 {
     // ---------- RX DMA SETUP ----------
-    RS485DMA_EnableDMAClock(_huart.Instance);
+    RS485DMA_EnableDMAClock();
     // Configure DMA handle
     _hdma_rx.Instance = _config->rx.stream;//dmaRxStream;
     _hdma_rx.Init.Request = _config->rx.request;//dmaRxRequest;

@@ -32,35 +32,36 @@ extern const RS485DMA_config* getRS485DMAConfig(HardwareSerial& serial);
 // ======================================================
 static inline void RS485DMA_EnableUARTClock(USART_TypeDef *instance)
 {
-#if defined(STM32H7xx)
     if (instance == USART1) __HAL_RCC_USART1_CLK_ENABLE();
+#if defined(USART2)
     else if (instance == USART2) __HAL_RCC_USART2_CLK_ENABLE();
+#endif
+#if defined(USART3)
     else if (instance == USART3) __HAL_RCC_USART3_CLK_ENABLE();
-    else if (instance == UART4) __HAL_RCC_UART4_CLK_ENABLE();
-    else if (instance == UART5) __HAL_RCC_UART5_CLK_ENABLE();
-#elif defined(STM32F4xx)
-    if (instance == USART1) __HAL_RCC_USART1_CLK_ENABLE();
-    else if (instance == USART2) __HAL_RCC_USART2_CLK_ENABLE();
-    else if (instance == USART3) __HAL_RCC_USART3_CLK_ENABLE();
-    else if (instance == UART4) __HAL_RCC_UART4_CLK_ENABLE();
-    else if (instance == UART5) __HAL_RCC_UART5_CLK_ENABLE();
+#endif
+#if defined(UART4)
+    else if (instance == UART4)  __HAL_RCC_UART4_CLK_ENABLE();
+#endif
+#if defined(UART5)
+    else if (instance == UART5)  __HAL_RCC_UART5_CLK_ENABLE();
 #endif
 }
+
 
 
 // ======================================================
 // DMA CLOCK ENABLE
 // ======================================================
-static inline void RS485DMA_EnableDMAClock(USART_TypeDef *instance)
+static inline void RS485DMA_EnableDMAClock(void)
 {
-#if defined(STM32H7xx)
-    if (instance == USART1 || instance == USART3) {
-        __HAL_RCC_DMA1_CLK_ENABLE();
-    } else if (instance == USART2) {
-        __HAL_RCC_DMA2_CLK_ENABLE();
-    }
-#elif defined(STM32F4xx)
-    __HAL_RCC_DMA1_CLK_ENABLE(); // F4: all UARTs use DMA1
+#if defined(DMA1)
+    __HAL_RCC_DMA1_CLK_ENABLE();
+#endif
+#if defined(DMA2)
+    __HAL_RCC_DMA2_CLK_ENABLE();
+#endif
+#if defined(BDMA)
+    __HAL_RCC_BDMA_CLK_ENABLE();
 #endif
 }
 
