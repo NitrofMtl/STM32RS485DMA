@@ -71,41 +71,17 @@ void RS485DMAClass::end()
 
 RS485DMAClass::operator bool()
 {
- return _begun;
+    return _begun;
 }
 
 
 int RS485DMAClass::available()
 {
-    size_t head = dma_rx_head();
+    size_t head = _rxHead;
     size_t tail = _rxTail;
 
     if (head == tail)
         return 0;
-
-    constexpr size_t CACHE_LINE = 32;
-
-    // ---------- Compute unread length ----------
-    size_t raw_len;
-    if (head > tail) {
-        raw_len = head - tail;
-    } else {
-        raw_len = DMA_RX_BUFFER_SIZE - tail; // first segment only
-    }
-
-    // ---------- Cache invalidation ----------
-    uintptr_t start = (uintptr_t)&_dma_rx_buffer[tail];
-    uintptr_t aligned_start = start & ~(CACHE_LINE - 1);
-
-    uintptr_t end = start + raw_len;
-    uintptr_t aligned_end = (end + CACHE_LINE - 1) & ~(CACHE_LINE - 1);
-
-    size_t aligned_len = aligned_end - aligned_start;
-
-    SCB_InvalidateDCache_by_Addr(
-        (uint32_t*)aligned_start,
-        aligned_len
-    );
 
     // ---------- Return total available bytes ----------
     if (head > tail) {
@@ -119,10 +95,53 @@ int RS485DMAClass::available()
 int RS485DMAClass::read()
 {
     if (!available()) return -1;
+
+    invalidateRxCache(_rxTail, 1);
  
     uint8_t byte = _dma_rx_buffer[_rxTail];
     _rxTail = (_rxTail +1) % DMA_RX_BUFFER_SIZE;
     return byte;
+}
+
+
+int RS485DMAClass::readFrame(uint8_t* buffer, size_t bufferSize)
+{
+    if (!_frame.armed) {
+        return 0;
+    }
+
+    if ((micros() - _frame.idleTimeStamp) < _postDelay) { // wait post delay
+        return 0;
+    }
+
+    size_t len = min(bufferSize, _frame.len);
+
+    if (len + _rxTail <= DMA_RX_BUFFER_SIZE) {
+        // contiguous
+        invalidateRxCache(_rxTail, len);
+        memcpy(buffer, (uint8_t*)&_dma_rx_buffer[_rxTail], len);
+        
+    } else {
+        // wrapped around
+        size_t firstPart = DMA_RX_BUFFER_SIZE - _rxTail;
+        invalidateRxCache(_rxTail, firstPart);
+        memcpy(buffer, (u_int8_t*)&_dma_rx_buffer[_rxTail], firstPart);
+        invalidateRxCache(0, len - firstPart);
+        memcpy(buffer + firstPart, (u_int8_t*)&_dma_rx_buffer[0], len - firstPart);
+    }
+    _rxTail = (_rxTail + len) % DMA_RX_BUFFER_SIZE;
+    _frame.len -= len;
+
+    if (_frame.len == 0) {
+        // Frame fully consumed
+        _frame.armed = false;
+        if (_frame.overflow) {
+            _rxTail = dma_rx_head();  // discard only AFTER frame done
+            _frame.overflow = false;
+            //Serial.println("overflow"); helper on debugging
+        }
+    }
+    return len;
 }
 
 
@@ -208,19 +227,18 @@ void RS485DMAClass::receive()
     auto inst = static_cast<DMA_Stream_TypeDef*>(_hdma_rx.Instance);
     if ((inst->CR & DMA_SxCR_EN) == 0) {
         if (HAL_UART_Receive_DMA(&_huart, (uint8_t*)_dma_rx_buffer, DMA_RX_BUFFER_SIZE) != HAL_OK) {
-            Serial.println("HAL_UART_Receive_DMA failed");
+            Serial.println("[RS485LIB] HAL_UART_Receive_DMA failed");
             // try to recover: abort + clear flags + return
             HAL_UART_AbortReceive(&_huart);
             return;
         }
     }
- 
-    // 5) Make sure RX interrupts we want are enabled (IDLE used to detect end-of-frame).
-    __HAL_UART_ENABLE_IT(&_huart, UART_IT_IDLE | UART_IT_RXNE);
 
-    // 6) update rx tail pointer based on DMA counter (safe now that DMA armed)
+    //update rx tail pointer based on DMA counter (safe now that DMA armed)
     _rxTail = DMA_RX_BUFFER_SIZE - __HAL_DMA_GET_COUNTER(_huart.hdmarx);
 
+    __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
+    __HAL_UART_ENABLE_IT(&_huart, UART_IT_IDLE);
 }
 
 
@@ -228,9 +246,8 @@ void RS485DMAClass::noReceive()
 {
     flush();
 
-    // Disable UART RX interrupts
-    __HAL_UART_DISABLE_IT(&_huart, UART_IT_IDLE | UART_IT_RXNE);
-
+    __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
+    __HAL_UART_DISABLE_IT(&_huart, UART_IT_IDLE);
     // Stop DMA safely
     auto inst = static_cast<DMA_Stream_TypeDef*>(_hdma_rx.Instance);
     __HAL_DMA_DISABLE(&_hdma_rx);
@@ -291,7 +308,7 @@ size_t RS485DMAClass::write(const uint8_t *buffer, size_t size)
 
     while (size > 0) {
         if (!DMATxTimeOut()) {
-            Serial.println("TX DMA timeout — aborting previous transfer");
+            Serial.println("[RS485LIB] TX DMA timeout — aborting previous transfer");
             return written;
         }
         size_t chunk = (size > DMA_TX_BUFFER_SIZE) ? DMA_TX_BUFFER_SIZE : size;
@@ -400,7 +417,7 @@ void RS485DMAClass::startNextTxChunk(size_t size)
 
     // Start DMA transmission
     if (HAL_UART_Transmit_DMA(&_huart, (uint8_t*)_dma_tx_buffer, size) != HAL_OK) {
-        Serial.println("HAL_UART_Transmit_DMA failed");
+        Serial.println("[RS485LIB] HAL_UART_Transmit_DMA failed");
         _txBusy = false;
         return;
     }
@@ -413,6 +430,42 @@ void RS485DMAClass::startNextTxChunk(size_t size)
     // Enable the Transmission Complete interrupt
     __HAL_UART_ENABLE_IT(&_huart, UART_IT_TC);
 }
+
+
+void RS485DMAClass::invalidateRxCache(size_t offset, size_t length)
+{
+    if (length == 0) return;
+
+    constexpr size_t CACHE_LINE = 32;
+
+    size_t firstPart = min(length, DMA_RX_BUFFER_SIZE - offset);
+
+    // ---- First segment ----
+    uintptr_t startPtr = (uintptr_t)&_dma_rx_buffer[offset];
+    uintptr_t aligned_start = startPtr & ~(CACHE_LINE - 1);
+    uintptr_t aligned_end =
+        ((startPtr + firstPart + CACHE_LINE - 1) & ~(CACHE_LINE - 1));
+
+    SCB_InvalidateDCache_by_Addr(
+        (uint32_t*)aligned_start,
+        aligned_end - aligned_start
+    );
+
+    // ---- Wrapped segment ----
+    if (firstPart < length) {
+        size_t secondPart = length - firstPart;
+        startPtr = (uintptr_t)&_dma_rx_buffer[0];
+        aligned_start = startPtr & ~(CACHE_LINE - 1);
+        aligned_end =
+            ((startPtr + secondPart + CACHE_LINE - 1) & ~(CACHE_LINE - 1));
+
+        SCB_InvalidateDCache_by_Addr(
+            (uint32_t*)aligned_start,
+            aligned_end - aligned_start
+        );
+    }
+}
+
 
 
 void RS485DMAClass::cleanTxDCache(size_t len)
@@ -441,18 +494,12 @@ bool RS485DMAClass::DMATxTimeOut()
         if (micros() - start > timeout) {
             HAL_DMA_Abort(&_hdma_tx);
             _txBusy = false;
-            Serial.println("tx timed out!!!");
+            Serial.println("[RS485LIB] Tx timed out!!!");
             return false;
         }
         yield();
     }
     return true;
-}
-
-
-void RS485DMAClass::onTxComplete()
-{
-    _txBusy = false;
 }
 
 
@@ -485,7 +532,7 @@ void RS485DMAClass::setupUsart(uint32_t baudrate)
     //_huart.FifoMode = UART_FIFOMODE_DISABLE;//make rx bug
 
     if (HAL_UART_Init(&_huart) != HAL_OK) {
-        Serial.println("HAL UART Init failed");
+        Serial.println("[RS485LIB] HAL UART Init failed");
         //Error_Handler();
     }
 
@@ -509,7 +556,7 @@ bool RS485DMAClass::initDMA(uint16_t config)
     _hdma_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
 
     if (HAL_DMA_Init(&_hdma_rx) != HAL_OK) {
-        Serial.println("HAL DMA Init failed");
+        Serial.println("[RS485LIB] HAL DMA Init failed");
         return false;
     }
      
@@ -534,7 +581,7 @@ bool RS485DMAClass::initDMA(uint16_t config)
     HAL_UART_AbortTransmit(&_huart);
 
     if (HAL_DMA_Init(&_hdma_tx) != HAL_OK) {
-        Serial.println("HAL TX DMA Init failed");
+        Serial.println("[RS485LIB] HAL TX DMA Init failed");
         return false;
     }
 
@@ -555,15 +602,26 @@ bool RS485DMAClass::initDMA(uint16_t config)
 
 void RS485DMAClass::onRxIdleIRQ()
 { 
-    _rxIdle = true;
+    _rxHead = dma_rx_head();
     _lastRxTimeStamp = micros();
-    __HAL_UART_ENABLE_IT(&_huart, UART_IT_RXNE);
+
+    if (_frame.armed && !( _lastRxTimeStamp - _frame.idleTimeStamp > _postDelay)) {
+        _frame.overflow = true;
+        return;
+    }
+
+    _frame.head = _rxHead;
+    size_t len = (_frame.head - _rxTail + DMA_RX_BUFFER_SIZE) % DMA_RX_BUFFER_SIZE;
+    if (len == 0) return;   // ignore spurious IDLE
+    _frame.len = len;
+    _frame.idleTimeStamp = _lastRxTimeStamp;
+    _frame.armed = true;
 }
 
 
-void RS485DMAClass::onRxActivity()
+void RS485DMAClass::onTxComplete()
 {
-    _rxIdle = false;
+    _txBusy = false;
 }
 
 
@@ -579,14 +637,10 @@ void RS485DMAClass::usartIrqHandler()
         //HAL_UART_IRQHandler(&RS485._huart);
         return;
     }
-    
-    if(__HAL_UART_GET_FLAG(&_huart, UART_FLAG_RXNE)) {
-        __HAL_UART_DISABLE_IT(&_huart, UART_IT_RXNE);
-        RS485.onRxActivity();
-    }
 
     if (__HAL_UART_GET_FLAG(&_huart, UART_FLAG_IDLE)) {
         __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
+        //__HAL_UART_DISABLE_IT(&_huart, UART_IT_IDLE);
         RS485.onRxIdleIRQ();
     }
 }
@@ -600,24 +654,13 @@ void RS485DMAClass::txStreamIrqHandler()
 
 bool RS485DMAClass::isRxIdle()
 {
-    if (!_rxIdle) return false;
+    if (_rxHead != dma_rx_head()) {
+        return false;
+    }
 
     uint32_t elapsed = micros() - _lastRxTimeStamp;
     if (elapsed < _rxIdleTime) return false;
 
-    // Confirm UART really went idle
-    if (!__HAL_UART_GET_FLAG(&_huart, UART_FLAG_IDLE))
-        return false;
-
-/*    // Optional – check DMA not moving
-    static uint32_t lastNDTR = 0xFFFFFFFF;
-    uint32_t currNDTR = static_cast<DMA_Stream_TypeDef*>(_hdma_rx.Instance)->NDTR;
-    bool dmaStable = (currNDTR == lastNDTR);
-    lastNDTR = currNDTR;
-
-    if (!dmaStable) return false;*/
-
-    // Passed all checks — truly idle
     return true;
 }
 

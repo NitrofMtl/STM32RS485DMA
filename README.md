@@ -135,3 +135,59 @@ If unsure, you usually do not need to call this function.
 
 ### ***RX and TX cannot occur simultaneously* (DMA constraint)**
 
+
+
+## DMA Frame-Based Reception (optional)
+
+### DMA Frame-Based Reception (optional)
+
+This library provides an **optional frame-based API** for protocols that require deterministic frame boundaries,
+such as Modbus RTU or custom binary protocols.
+
+#### Features
+
+- `readFrame(buffer, bufferSize)` reads a complete frame from the RX DMA buffer.
+- Frames are **armed** on UART idle detection (`IDLE` event) and considered complete after a configurable **post-delay**.
+- If a frame is not consumed in time and new data arrives, the **frame is dropped** (overflow).
+- Frame boundaries are determined **without blocking the CPU**, using DMA and idle detection.
+
+#### Basic usage
+
+```cpp
+uint8_t buffer[50];
+size_t len = RS485.readFrame(buffer, sizeof(buffer));
+
+if (len > 0) {
+    // Process the complete frame
+    processFrame(buffer, len);
+}
+
+````
+
+---
+Notes:
+readFrame() returns the number of bytes available in the current frame.
+Frames that are not consumed before the next one starts are discarded (overflow).
+This API is optional; standard available() / read() calls still work for stream-based parsing.
+
+---
+
+
+
+
+
+---
+
+
+```markdown
+##### Frame overflow
+
+If a new idle event (end of a frame) is detected **before the previous frame has been fully consumed**, the previous frame is **dropped**.  
+This ensures that:
+
+- The DMA buffer only contains **valid, complete frames**.
+- `readFrame()` always returns the **most recent complete frame**.
+- If you need to process **every byte without dropping**, use `available()` + `read()` instead.
+
+**Tip:** Always call `readFrame()` as soon as data is available to minimize dropped frames.
+
