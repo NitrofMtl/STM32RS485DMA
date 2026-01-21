@@ -110,7 +110,7 @@ int RS485DMAClass::readFrame(uint8_t* buffer, size_t bufferSize)
         return 0;
     }
 
-    if ((micros() - _frame.idleTimeStamp) < _postDelay) { // wait post delay
+    if ((micros() - _frame.idleTimeStamp) < _rxIdleTime) { // wait post delay
         return 0;
     }
 

@@ -1,6 +1,6 @@
 {
   "name": "STM32RS485DMA",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "DMA-based RS485 driver for STM32 Arduino boards using UART + DMA.",
   "keywords": [
     "RS485",
