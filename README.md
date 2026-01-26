@@ -15,6 +15,8 @@ Designed for deterministic timing, low CPU usage, and industrial protocols
 - Compatible with Arduino RS485 API (where meaningful)
 
 ---
+### If you are looking for a Modbus RTU/TCP implementation compatible with this driver, see [STM32Modbus](https://github.com/NitrofMtl/STM32Modbus).
+---
 
 ## Supported boards
 - Arduino Opta (tested)
@@ -23,6 +25,8 @@ Designed for deterministic timing, low CPU usage, and industrial protocols
   - Optional DMAMUX (recommended)
 
 > Other STM32 targets are expected to work but require board-specific configuration.
+
+Looking for testers for Portenta H7 / GIGA R1 / Machine Control — see STM32duino [discussions/2903](https://github.com/orgs/stm32duino/discussions/2903)
 
 ---
 
@@ -179,7 +183,7 @@ This API is optional; standard available() / read() calls still work for stream-
 ---
 
 
-```markdown
+
 ##### Frame overflow
 
 If a new idle event (end of a frame) is detected **before the previous frame has been fully consumed**, the previous frame is **dropped**.  
