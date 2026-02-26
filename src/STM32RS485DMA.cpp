@@ -605,7 +605,7 @@ void RS485DMAClass::onRxIdleIRQ()
     _rxHead = dma_rx_head();
     _lastRxTimeStamp = micros();
 
-    if (_frame.armed && !( _lastRxTimeStamp - _frame.idleTimeStamp > _postDelay)) {
+    if (_frame.armed && !( _lastRxTimeStamp - _frame.idleTimeStamp > _rxIdleTime)) {
         _frame.overflow = true;
         return;
     }

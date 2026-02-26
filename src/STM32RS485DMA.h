@@ -120,7 +120,7 @@ class RS485DMAClass : public Stream {
     uint8_t head = 0;
     bool armed = false;
     bool overflow = false;
-  } _frame;
+  } volatile _frame;
 
   static constexpr size_t DMA_RX_BUFFER_SIZE = 256;
   static constexpr size_t DMA_TX_BUFFER_SIZE = 256;
@@ -138,9 +138,7 @@ class RS485DMAClass : public Stream {
   void cleanTxDCache(size_t len);
 
   void onRxIdleIRQ();
-  void onRxActivity();
   void onTxComplete();
-  //void validateFrame();
 
   inline size_t dma_rx_head() const { 
     uint16_t remaining = __HAL_DMA_GET_COUNTER(&_hdma_rx);
@@ -150,7 +148,6 @@ class RS485DMAClass : public Stream {
   }
 
 };
-
 
 
 #ifdef ARDUINO_OPTA
