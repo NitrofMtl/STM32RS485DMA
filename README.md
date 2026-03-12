@@ -13,6 +13,7 @@ Designed for deterministic timing, low CPU usage, and industrial protocols
 - Deterministic DE/RE timing
 - Arduino `Stream` compatible
 - Compatible with Arduino RS485 API (where meaningful)
+- Optional frame-based reception API
 
 ---
 ### If you are looking for a Modbus RTU/TCP implementation compatible with this driver, see [STM32Modbus](https://github.com/NitrofMtl/STM32Modbus).
@@ -26,12 +27,20 @@ Designed for deterministic timing, low CPU usage, and industrial protocols
 
 > Other STM32 targets are expected to work but require board-specific configuration.
 
+Planned board mappings:
+
+- Arduino GIGA R1 WiFi
+- Arduino Portenta family
+- Arduino Machine Control
+
+Community testers are welcome.
+
 Looking for testers for Portenta H7 / GIGA R1 / Machine Control — see STM32duino [discussions/2903](https://github.com/orgs/stm32duino/discussions/2903)
 
 ---
 
 ## Installation
-- Arduino IDE: *Library Manager* (future)
+- Arduino IDE: *Library Manager*
 - PlatformIO:
   ```ini
   lib_deps = nitrofmtl/STM32RS485DMA
@@ -110,12 +119,16 @@ Same semantics as `ArduinoRS485.setDelays()`.
 
 ---
 
-`setRxIdleTime(idle_time_us)` (DMA-specific)
+`setRxIdleTime(idle_time_us)`
 
-Sets the additional idle time (in microseconds) required after the UART IDLE event
+DMA-specific configuration.
+
+Sets the **total silent time** (in microseconds) required after the UART IDLE event
 before received data is considered complete.
 
 The UART hardware detects IDLE after approximately one character time (minimum, hardware-defined).
+The value provided to `setRxIdleTime()` represents the **total silence
+time required**, including this hardware delay.
 This function allows adding extra margin for noisy lines or custom protocols.
 
 In most cases, the default value is sufficient and this function does not need to be used.
@@ -135,15 +148,11 @@ RS485.setRxIdleTime(1200);  // ≈ 4 characters
 
 If unsure, you usually do not need to call this function.
 
-## Important!
-
-### ***RX and TX cannot occur simultaneously* (DMA constraint)**
 
 
 
 ## DMA Frame-Based Reception (optional)
 
-### DMA Frame-Based Reception (optional)
 
 This library provides an **optional frame-based API** for protocols that require deterministic frame boundaries,
 such as Modbus RTU or custom binary protocols.

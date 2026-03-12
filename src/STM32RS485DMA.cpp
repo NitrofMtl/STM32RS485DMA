@@ -2,16 +2,23 @@
 #include "board_config/board_config.h"
 
 
-RS485DMAClass::RS485DMAClass(HardwareSerial& serial, PinName txPin, PinName dePin, PinName rePin)
-: _config(getRS485DMAConfig(serial)), _txPin(txPin), _dePin(dePin), _rePin(rePin)
+RS485DMAClass::RS485DMAClass(const RS485DMA_config* config, PinName txPin, PinName dePin, PinName rePin)
+: _config(config), _txPin(txPin), _dePin(dePin), _rePin(rePin)
 {
-    if (!_config) {
+
+       if (!hasValidConfig()) {
         // No valid DMA config found for this Serial instance → stop here
         while (1) {
             // Hard fail: hang here so the dev notices the bug
             // Could also blink LED_BUILTIN instead of blocking
         }
     }
+}
+
+
+RS485DMAClass::RS485DMAClass(HardwareSerial& serial, PinName txPin, PinName dePin, PinName rePin) :
+    RS485DMAClass(RS485DMA_config::fromSerial(&serial), txPin, dePin, rePin)
+{
 }
 
 
@@ -347,8 +354,9 @@ void RS485DMAClass::sendBreak(uint32_t duration)
         yield();
     }
     // Restore UART TX function
-    GPIO_InitTypeDef gi = _config->GPIO;
-    HAL_GPIO_Init(_config->gpio_port, &gi);
+    GPIO_TypeDef* port = pinNameToPort(_config->txPin);
+    GPIO_InitTypeDef gi = _config->uart_gpio();
+    HAL_GPIO_Init(port, &gi);
     // Deassert DE and disable RX (active low)
     digitalWrite(_dePin, LOW);
     digitalWrite(_rePin, LOW);
@@ -378,12 +386,14 @@ void RS485DMAClass::sendBreakMicroseconds(uint32_t duration)
         yield();
     }
     // Restore UART TX function
-    GPIO_InitTypeDef gi = _config->GPIO;
-    HAL_GPIO_Init(_config->gpio_port, &gi);
+    GPIO_TypeDef* port = pinNameToPort(_config->txPin);
+    GPIO_InitTypeDef gi = _config->uart_gpio();
+    HAL_GPIO_Init(port, &gi);
     // Deassert DE and disable RX (active low)
     digitalWrite(_dePin, LOW);
     digitalWrite(_rePin, LOW);
 }
+
 
 void RS485DMAClass::setConfig(const RS485DMA_config* cfg)
 {
@@ -391,9 +401,16 @@ void RS485DMAClass::setConfig(const RS485DMA_config* cfg)
     _config = cfg;
 }
 
+
 bool RS485DMAClass::hasValidConfig() const {
-    return _config != nullptr;
+    if (_config == nullptr) return false;
+    if (_config->txPin == NC) return false;
+    if (_config->rxPin == NC) return false;
+    if (_config->rxStream == nullptr) return false;
+    if (_config->txStream == nullptr) return false;
+    return true;
 }
+
 
 void RS485DMAClass::startNextTxChunk(size_t size)
 {
@@ -467,7 +484,6 @@ void RS485DMAClass::invalidateRxCache(size_t offset, size_t length)
 }
 
 
-
 void RS485DMAClass::cleanTxDCache(size_t len)
 {
     constexpr size_t CACHE_LINE = 32;
@@ -512,13 +528,14 @@ void RS485DMAClass::setupUsart(uint32_t baudrate)
     #endif
 
     // clocks
-    RS485DMA_EnableGPIOClock(_config->gpio_port); // assuming TX/RX pins on port B
-    RS485DMA_EnableUARTClock(_config->instance);
+    GPIO_TypeDef* port = pinNameToPort(_config->txPin);
+    RS485DMA_EnableGPIOClock(port);
+    RS485DMA_EnableUARTClock(_config->getUsartInstance());
 
-    GPIO_InitTypeDef gi = _config->GPIO;
-    HAL_GPIO_Init(_config->gpio_port, &gi);
+    GPIO_InitTypeDef gi = _config->uart_gpio();
+    HAL_GPIO_Init(port, &gi);
 
-    _huart.Instance = _config->instance;
+    _huart.Instance = _config->getUsartInstance();
     _huart.Init.BaudRate = baudrate;
     _huart.Init.WordLength = UART_WORDLENGTH_8B;
     _huart.Init.StopBits = UART_STOPBITS_1;
@@ -529,7 +546,6 @@ void RS485DMAClass::setupUsart(uint32_t baudrate)
     _huart.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
     _huart.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
     _huart.Init.ClockPrescaler = UART_PRESCALER_DIV1;
-    //_huart.FifoMode = UART_FIFOMODE_DISABLE;//make rx bug
 
     if (HAL_UART_Init(&_huart) != HAL_OK) {
         Serial.println("[RS485LIB] HAL UART Init failed");
@@ -541,11 +557,16 @@ void RS485DMAClass::setupUsart(uint32_t baudrate)
 
 bool RS485DMAClass::initDMA(uint16_t config)
 {
+    const UART_DMA_Map* uartMap = _config->find_uart_map();
+    if (uartMap == nullptr) {
+        Serial.println("[RS485LIB] No UART DMA map found for this USART instance");
+        return false;
+    }
     // ---------- RX DMA SETUP ----------
     RS485DMA_EnableDMAClock();
     // Configure DMA handle
-    _hdma_rx.Instance = _config->rx.stream;//dmaRxStream;
-    _hdma_rx.Init.Request = _config->rx.request;//dmaRxRequest;
+    _hdma_rx.Instance = _config->rxStream;//dmaRxStream;
+    _hdma_rx.Init.Request = uartMap->dma_rx_request;
     _hdma_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
     _hdma_rx.Init.PeriphInc = DMA_PINC_DISABLE;
     _hdma_rx.Init.MemInc = DMA_MINC_ENABLE;
@@ -563,12 +584,12 @@ bool RS485DMAClass::initDMA(uint16_t config)
     // Link DMA handle to UART
     __HAL_LINKDMA(&_huart, hdmarx, _hdma_rx);
 
-    HAL_NVIC_SetPriority(_config->usart_irqn, 1 ,0);//UsartIRQnRx, 1, 0);
-    HAL_NVIC_EnableIRQ(_config->usart_irqn);//UsartIRQnRx);
+    HAL_NVIC_SetPriority(uartMap->irqn, 1 ,0);//UsartIRQnRx, 1, 0);
+    HAL_NVIC_EnableIRQ(uartMap->irqn);//UsartIRQnRx);
 
     // ---------- TX DMA SETUP ----------
-    _hdma_tx.Instance = _config->tx.stream;//dmaTxStream;
-    _hdma_tx.Init.Request = _config->tx.request;//dmaTxRequest;
+    _hdma_tx.Instance = _config->txStream;//dmaTxStream;
+    _hdma_tx.Init.Request = uartMap->dma_tx_request;
     _hdma_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
     _hdma_tx.Init.PeriphInc = DMA_PINC_DISABLE;
     _hdma_tx.Init.MemInc = DMA_MINC_ENABLE;
@@ -586,15 +607,15 @@ bool RS485DMAClass::initDMA(uint16_t config)
     }
 
     //TX stream IRQ handler
-    //HAL_NVIC_SetPriority(_config->IRQnRxStream, 0, 0); //////////not used for now...
+    //HAL_NVIC_SetPriority(_config->IRQnRxStream, 0, 0); //////////not used for now... if needed must created a mapper
     //HAL_NVIC_EnableIRQ(_config->IRQnRxStream);
 
     // Link TX DMA handle
     __HAL_LINKDMA(&_huart, hdmatx, _hdma_tx);
 
     // Enable NVIC for DMA TX stream
-    HAL_NVIC_SetPriority(_config->tx.irqn, 5, 0);//IRQnTxStream, 5, 0);
-    HAL_NVIC_EnableIRQ(_config->tx.irqn);//IRQnTxStream);
+    HAL_NVIC_SetPriority(_config->txStream_irq(), 5, 0);//IRQnTxStream, 5, 0);
+    HAL_NVIC_EnableIRQ(_config->txStream_irq());//IRQnTxStream);
 
     return true;
 }
@@ -632,16 +653,13 @@ void RS485DMAClass::usartIrqHandler()
         __HAL_UART_GET_IT_SOURCE(&_huart, UART_IT_TC)) {
         __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_TCF);
         __HAL_UART_DISABLE_IT(&_huart, UART_IT_TC);
-        RS485.onTxComplete();
-        // Defer rest to HAL (calls callbacks, handles TC, RXNE if needed)
-        //HAL_UART_IRQHandler(&RS485._huart);
+        onTxComplete();
         return;
     }
 
     if (__HAL_UART_GET_FLAG(&_huart, UART_FLAG_IDLE)) {
         __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
-        //__HAL_UART_DISABLE_IT(&_huart, UART_IT_IDLE);
-        RS485.onRxIdleIRQ();
+        onRxIdleIRQ();
     }
 }
 
@@ -710,6 +728,63 @@ float RS485DMAClass::getBitsPerChar()
     return bits;
 }
 
+
+void RS485DMAClass::checkIrqHandlers() const
+{
+    if (!hasValidConfig())
+        return;
+
+    // Check USART IRQ
+    const UART_DMA_Map* uartMap = _config->find_uart_map();
+    if (uartMap->irqn != 0) // valid IRQ number
+    {
+        Serial.print("RS485DMA: Ensure handler for ");
+        switch (uartMap->irqn)
+        {
+            case USART1_IRQn: Serial.println("USART1_IRQHandler"); break;
+            case USART2_IRQn: Serial.println("USART2_IRQHandler"); break;
+            case USART3_IRQn: Serial.println("USART3_IRQHandler"); break;
+            case UART4_IRQn: Serial.println("UART4_IRQHandler"); break;
+            case UART5_IRQn: Serial.println("UART5_IRQHandler"); break;
+            case USART6_IRQn: Serial.println("USART6_IRQHandler"); break;
+            case UART7_IRQn: Serial.println("UART7_IRQHandler"); break;
+            case UART8_IRQn: Serial.println("UART8_IRQHandler"); break;
+            default: Serial.println("Unknown USART IRQ"); break;
+        }
+    }
+
+    // Check TX DMA IRQ
+    if (_config->txStream != 0)
+    {
+        IRQn_Type txIrq = _config->txStream_irq();
+        Serial.print("RS485DMA: Ensure handler for ");
+        switch (txIrq)
+        {
+            case DMA1_Stream0_IRQn: Serial.println("DMA1_Stream0_IRQHandler"); break;
+            case DMA1_Stream1_IRQn: Serial.println("DMA1_Stream1_IRQHandler"); break;
+            case DMA1_Stream2_IRQn: Serial.println("DMA1_Stream2_IRQHandler"); break;
+            case DMA1_Stream3_IRQn: Serial.println("DMA1_Stream3_IRQHandler"); break;
+            default: Serial.println("Unknown TX DMA IRQ"); break;
+        }
+    }
+
+    // Similarly, you could add RX DMA if you want
+ /*   if (_config->rxStream != 0)
+    {
+        ///MUST do a mapper for rXStreamIRQ --> IRQn_Type rxIrq
+        Serial.print("RS485DMA: Ensure handler for ");
+        switch (rxIrqn)
+        {
+            case DMA1_Stream0_IRQn: Serial.println("DMA1_Stream0_IRQHandler (RX)"); break;
+            case DMA1_Stream1_IRQn: Serial.println("DMA1_Stream1_IRQHandler (RX)"); break;
+            case DMA1_Stream2_IRQn: Serial.println("DMA1_Stream2_IRQHandler (RX)"); break;
+            case DMA1_Stream3_IRQn: Serial.println("DMA1_Stream3_IRQHandler (RX)"); break;
+            default: Serial.println("Unknown RX DMA IRQ"); break;
+        }
+    }*/
+}
+
+
 #ifdef ARDUINO_OPTA
 #define RS485_USING_USART3
 #define RS485_USING_DMA1_Stream1
@@ -717,7 +792,8 @@ RS485DMAClass RS485(RS485_OPTA_DEFAULT_PINS);
 #endif
 
 #ifdef RS485_USING_USART3
-extern "C" void USART3_IRQHandler(void) {
+extern "C" void USART3_IRQHandler(void)
+{
     RS485.usartIrqHandler();
 }
 #endif
@@ -728,6 +804,4 @@ extern "C" void DMA1_Stream1_IRQHandler(void)
     RS485.txStreamIrqHandler();
 }
 #endif
-
-
 

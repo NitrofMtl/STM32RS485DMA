@@ -1,93 +1,124 @@
+# Contributing to STM32RS485DMA
 
 Thanks for your interest in contributing.
 
-This library targets STM32 DMA-based UART peripherals and requires
+This library targets **STM32 DMA-based UART peripherals** and requires
 a solid understanding of:
+
 - STM32 HAL
 - UART + DMA interaction
-- Cache coherency (DCache)
 - Interrupt handling
+- Cache coherency (DCache) on Cortex-M7 devices
 
-Basic Arduino usage questions should go to Discussions, not PRs.
+Basic Arduino usage questions should go to **Discussions**, not Pull Requests.
+
 ---
 
-## What we accept
-- New STM32 board support
+# What we accept
+
+Contributions are welcome for:
+
+- Support for additional STM32 boards
 - DMA / timing fixes
 - Documentation improvements
 - Examples
+- HAL compatibility fixes
 
 ---
 
-## What we don't accept (without discussion)
+# What we do NOT accept (without discussion)
+
+To preserve the design goals of this library, the following changes
+will normally be rejected unless discussed first:
+
 - Blocking APIs
 - Polling-based RX/TX
-- Non-DMA implementations
+- Non-DMA UART implementations
 - Changes that break Arduino `Stream` semantics
+- Features that introduce hidden background tasks
+
+This library is intentionally **deterministic and interrupt-driven**.
 
 ---
 
-## Adding a new board
-Please provide:
-- Board name
-- UART instance used
-- DMA RX/TX stream or channel
-- DE / RE pin mapping
-- Confirmation of cache requirements
+# Library architecture overview
+
+The core driver is **hardware-agnostic**.
+
+Board support is implemented through **mapping tables** that associate:
+
+- UART instance
+- DMA streams
+- IRQ numbers
+- Default Serial pin mappings
+
+The library automatically derives most configuration from:
+
+- TX/RX pins
+- Arduino `HardwareSerial`
+- internal UART/DMA mapping tables
+
+This greatly reduces the amount of board-specific code required.
 
 ---
 
-## Code style
-- No dynamic allocation
-- Explicit state machines
-- Defensive HAL usage
-- No hidden background tasks
+# Adding support for a new board
+
+Most STM32 boards can be supported by extending the mapping tables.
+
+Typical steps:
+
+1. Verify that the board exposes a **UART with DMA RX and TX**.
+
+2. Add the UART entry to the internal **UART/DMA mapping table**, including:
+
+   - UART instance (`USARTx`)
+   - RX DMA stream
+   - TX DMA stream
+   - IRQ number
+   - DMA request IDs (if required by the MCU family)
+
+3. Ensure the board defines valid Arduino pin macros:
+
+```cpp
+SERIALx_TX
+SERIALx_RX
+```
+
+These allow the driver to automatically detect the correct USART.
+
+4. Test:
+
+- RX DMA reception
+- UART IDLE detection
+- TX DMA transmission
+- DE/RE timing
 
 ---
 
-## Library architecture overview
+# Interrupt handling
 
-Each supported board provides:
-- A static DMA_Config structure
-- Predefined UART / DMA / GPIO mappings
-- ISR forwarding functions
+STM32 interrupt symbols are defined by the MCU startup files and cannot
+be registered dynamically.
 
-The core library logic is hardware-agnostic and relies on these configurations.
+For this reason IRQ handlers must **forward to the RS485DMA instance**.
 
+Typical pattern:
 
----
+```cpp
+extern "C" void USART3_IRQHandler(void)
+{
+    RS485.usartIrqHandler();
+}
 
-## Adding support for a new board
+extern "C" void DMA1_Stream3_IRQHandler(void)
+{
+    RS485.txStreamIrqHandler();
+}
 
-1. Create a board-specific configuration file
-   - Define UART instance
-   - Define DMA streams and requests
-   - Define GPIO alternate functions
+```
 
-2. Declare a `DMA_Config` instance for the board
-
-3. Provide IRQ forwarding handlers
-   - USARTx_IRQHandler → RS485DMAClass::usartIrqHandler()
-   - DMA RX stream IRQ → rxStreamIrqHandler()
-   - DMA TX stream IRQ → txStreamIrqHandler()
-
-4. Instantiate a global RS485 object (if applicable)
-
-5. Validate RX (DMA + IDLE) before TX
-
-
----
-
-## Interrupt handling
-
-ISR symbols are defined by the MCU startup files and cannot be dynamically registered.
-
-For this reason:
-- IRQ handlers are board-specific
-- Handlers must forward to the RS485DMAClass instance
-
-Do not attempt to generate ISR names dynamically.
-
+Handler names must match those defined by the STM32 startup files.
 
 ---
 
@@ -99,101 +130,125 @@ When porting to a new MCU family, pay attention to:
 - Presence or absence of DMAMUX
 - UART FIFO support
 - RCC clock tree differences
-- Cache (DCache) requirements
+- Cache (DCache) requirements on Cortex-M7 devices
 - HAL macro availability
 
-Some of these may require conditional compilation or HAL workarounds.
+Some differences may require conditional compilation.
 
+---
+
+## Code style guidelines
+
+- No dynamic allocation
+- Prefer explicit state machines
+- Defensive HAL usage
+- Avoid hidden side effects
+- Avoid heavy work inside ISRs
+
+The driver should remain **predictable and low-overhead**.
 
 ---
 
 ## Pull request guidelines
 
-- Board-specific code should be isolated
-- Do not hardcode USART instances in the core
-- Avoid breaking Opta support
-- Keep Arduino-style API compatibility
+Please ensure that:
 
-
----
-#### 1. Using built-in board configurations
-No configuration required. Supported boards automatically select
-the correct DMA and USART mapping.
-
-#### 2. Providing a custom DMA configuration (recommended for new boards)
-Advanced users may define a DMA_Config directly in their sketch and
-attach it using setConfig() before calling begin().
+- Board-specific code is isolated
+- No USART instances are hardcoded in core logic
+- Existing boards (especially Opta) remain functional
+- Arduino-style API compatibility is preserved
 
 ---
-## Example of implementation
+
+
+## Testing a new board
+
+When validating support for a new board, two initialization methods
+can be used.
+
+### 1. Standard initialization (recommended)
+
+Uses automatic USART detection and mapping.
+
+```cpp
+#include <RS485DMA.h>
+
+RS485DMAClass RS485(Serial2, SERIAL2_TX, PB_14, PB_13);
+
+void setup()
+{
+    RS485.begin(115200);
+}
+
+```
+
+This is the preferred method and should work when the board
+is supported by the internal mapping tables.
+
 ---
 
-````
+### 2. Explicit configuration (advanced testing)
 
-#include "STM32RS485DMA.h"
+When a board is not yet supported, contributors may manually
+create a configuration object.
 
-/// -----------------------------------------------------------------------------
-// DMA / USART configuration
-// Fill these according to the MCU reference manual.
-//
-// Each RS485 port requires:
-//  - one USART
-//  - one TX DMA stream
-//  - one RX DMA stream
-//  - its own IRQ handlers
-// -----------------------------------------------------------------------------
-constexpr DMA_Config RS485x_Config = 
+```cpp
+#include <RS485DMA.h>
+
+const RS485DMA_config* config =
+    RS485DMA_config::fromPins(SERIAL2_TX, SERIAL2_RX);
+
+RS485DMAClass RS485(config, SERIAL2_TX, PB_14, PB_13);
+
+void setup()
 {
-    .serial = &SerialX,
-    .instance = USARTx,
-    .gpio_port = GPIOX,
-    .usart_irqn = USARTx_IRQn,
-    .rx = {
-        .stream = DMAx_Streamy,
-        .request = DMA_REQUEST_USARTx_RX,
-    },
-    .tx = {
-        .stream = DMAx_Streamz,
-        .request = DMA_REQUEST_USARTx_TX,
-        .irqn = DMAx_Streamz_IRQn
-    },
-    .GPIO = DMA_GPIO_Init(
-        GPIO_PIN_tx, GPIO_PIN_rx,
-        GPIO_AF7_USART3
-    )
-};
-
-// -----------------------------------------------------------------------------
-// RS485 object
-// -----------------------------------------------------------------------------
-
-RS485DMAClass RS485x(SerialX, TX_PIN, DE_PIN, RE_PIN);
-
-// -----------------------------------------------------------------------------
-// IRQ handlers
-// -----------------------------------------------------------------------------
-
-extern "C" void USARTx_IRQHandler(void)
-{
-    RS485x.usartIrqHandler();
+    RS485.begin(115200);
 }
+```
 
-extern "C" void DMAx_Streamz_IRQHandler(void)
-{
-    RS485x.txStreamIrqHandler();
-}
+This allows testing the driver before adding the board to the
+internal mapping tables.
 
-
-// -----------------------------------------------------------------------------
-// Setup
-// -----------------------------------------------------------------------------
-
-void setup(){
-    RS485x.setConfig(&RS485x_Config); //Confis MUST be called before begin()
-    RS485x.begin(9600);
-
-}
-
-````
+If this configuration works correctly, the board can then be
+added to the library mappings.
 
 
+### Modbus compatibility
+
+This library supports multiple `RS485DMAClass` instances, allowing
+several independent RS485 ports on the same board.
+
+However, compatibility with STM32Modbus libraries requires that
+one global instance is named `RS485`.
+
+Example:
+
+```cpp
+RS485DMAClass RS485(Serial2, SERIAL2_TX, DE_PIN, RE_PIN);
+
+```
+
+Additional ports may be created with different names:
+
+```
+Additional ports may be created with different names:
+```
+
+If Modbus is used, the instance named RS485 must be declared
+globally so that it can be referenced by the Modbus library.
+
+
+
+### Testing expectations
+
+- When adding support for a new board, contributors should verify:
+
+- RX DMA reception
+
+- TX DMA transmission
+
+- UART IDLE detection
+
+- DE / RE timing behavior
+
+- No DMA overrun conditions

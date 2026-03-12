@@ -36,6 +36,9 @@ class RS485DMAClass : public Stream {
   public:
   RS485DMAClass(HardwareSerial& serial, int , int, int) = delete;
   RS485DMAClass(HardwareSerial& serial, PinName txPin, PinName dePin, PinName rePin);
+  RS485DMAClass(const RS485DMA_config* config, int , int, int) = delete;
+  RS485DMAClass(const RS485DMA_config* config) = delete;
+  RS485DMAClass(const RS485DMA_config* config, PinName txPin, PinName dePin, PinName rePin);
   bool begin(unsigned long baudrate, uint16_t config, int predelay, int postdelay);
 
   // Convenience overloads
@@ -88,6 +91,7 @@ class RS485DMAClass : public Stream {
   uint32_t getUsecForNChar(float n);
   void setConfig(const RS485DMA_config* cfg);
   bool hasValidConfig() const;
+  void checkIrqHandlers() const;
 
   //ISR handlers
   void usartIrqHandler();
@@ -150,6 +154,6 @@ class RS485DMAClass : public Stream {
 };
 
 
-#ifdef ARDUINO_OPTA
+// Optional global instance for ArduinoModbus compatibility
 extern RS485DMAClass RS485;
-#endif
+
