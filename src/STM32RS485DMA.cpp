@@ -476,7 +476,7 @@ void RS485DMAClass::invalidateRxCache(size_t offset, size_t length)
         aligned_end =
             ((startPtr + secondPart + CACHE_LINE - 1) & ~(CACHE_LINE - 1));
 
-        SCB_InvalidateDCache_by_Addr(
+        RS485_DMA_DCACHE_INVALIDATE(
             (uint32_t*)aligned_start,
             aligned_end - aligned_start
         );
@@ -494,7 +494,7 @@ void RS485DMAClass::cleanTxDCache(size_t len)
     uintptr_t end = start + len;
     uintptr_t aligned_end = (end + CACHE_LINE - 1) & ~(CACHE_LINE - 1);
 
-    SCB_CleanDCache_by_Addr(
+    RS485_DMA_DCACHE_CLEAN(
         (uint32_t*)aligned_start,
         aligned_end - aligned_start
     );

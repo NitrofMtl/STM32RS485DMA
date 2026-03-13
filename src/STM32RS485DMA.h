@@ -8,6 +8,25 @@
 #error "RS485DMAClass: This library only supports STM32-based boards (e.g. Opta, Portenta)"
 #endif
 
+// RS485DMA_platform.h
+
+#if (__CORTEX_M == 7)
+#define RS485DMA_HAVE_DCACHE
+#endif
+
+#if defined(DMAMUX1)
+#define RS485DMA_HAVE_DMAMUX
+#endif
+
+
+#ifdef RS485DMA_HAVE_DCACHE
+#define RS485_DMA_DCACHE_CLEAN(addr, size) SCB_CleanDCache_by_Addr((uint32_t*)(addr), size)
+#define RS485_DMA_DCACHE_INVALIDATE(addr, size) SCB_InvalidateDCache_by_Addr((uint32_t*)(addr), size)
+#else
+#define RS485_DMA_DCACHE_CLEAN(addr, size)
+#define RS485_DMA_DCACHE_INVALIDATE(addr, size)
+#endif
+
 #if !(defined(ARDUINO_OPTA) || defined(ARDUINO_PORTENTA_H7) || defined(ARDUINO_GIGA))
 // Add more boards here when tested
 #error "RS485DMAClass: Unsupported STM32 board (only Opta, Portenta H7, Giga)"
