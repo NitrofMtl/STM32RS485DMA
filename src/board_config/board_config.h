@@ -1,7 +1,9 @@
 #pragma once
 #include <Arduino.h>
 
-
+#if defined(DMAMUX1) || defined(DMAMUX1_Channel0)
+#define RS485DMA_HAVE_DMAMUX
+#endif
 struct SerialPinMap
 {
     HardwareSerial* serial;
@@ -13,9 +15,22 @@ struct UART_DMA_Map
 {
     USART_TypeDef* instance;
     IRQn_Type irqn;
+#if defined(RS485DMA_HAVE_DMAMUX)
     uint32_t dma_rx_request;
     uint32_t dma_tx_request;
+#else
+    uint32_t rxChannel;
+    uint32_t txChannel;
+#endif
 };
+
+/*struct UART_DMA_Map
+{
+    USART_TypeDef* instance;
+    IRQn_Type irqn;
+    uint32_t dma_rx_request;
+    uint32_t dma_tx_request;
+};*/
 
 
 struct DMA_Stream_IRQ_Map

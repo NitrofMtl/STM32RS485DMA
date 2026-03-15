@@ -566,7 +566,12 @@ bool RS485DMAClass::initDMA(uint16_t config)
     RS485DMA_EnableDMAClock();
     // Configure DMA handle
     _hdma_rx.Instance = _config->rxStream;//dmaRxStream;
+    //_hdma_rx.Init.Request = uartMap->dma_rx_request;
+#if defined(RS485DMA_HAVE_DMAMUX)
     _hdma_rx.Init.Request = uartMap->dma_rx_request;
+#else
+    _hdma_rx.Init.Request = uartMap->rxChannel;
+#endif
     _hdma_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
     _hdma_rx.Init.PeriphInc = DMA_PINC_DISABLE;
     _hdma_rx.Init.MemInc = DMA_MINC_ENABLE;
@@ -589,7 +594,12 @@ bool RS485DMAClass::initDMA(uint16_t config)
 
     // ---------- TX DMA SETUP ----------
     _hdma_tx.Instance = _config->txStream;//dmaTxStream;
+    //_hdma_tx.Init.Request = uartMap->dma_tx_request;
+#if defined(RS485DMA_HAVE_DMAMUX)
     _hdma_tx.Init.Request = uartMap->dma_tx_request;
+#else
+    _hdma_tx.Init.Request = uartMap->txChannel;
+#endif
     _hdma_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
     _hdma_tx.Init.PeriphInc = DMA_PINC_DISABLE;
     _hdma_tx.Init.MemInc = DMA_MINC_ENABLE;

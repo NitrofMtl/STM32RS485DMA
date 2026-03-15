@@ -55,7 +55,7 @@ static const SerialPinMap serial_pin_map[] =
 #endif
 };
 
-
+#ifdef RS485DMA_HAVE_DMAMUX
 static const UART_DMA_Map uart_dma_map[] =
 {
 #ifdef USART1
@@ -98,6 +98,42 @@ static const UART_DMA_Map uart_dma_map[] =
     {USART10, USART10_IRQn, DMA_REQUEST_USART10_RX, DMA_REQUEST_USART10_TX},
 #endif
 };
+#else
+static const UART_DMA_Map uart_dma_map[] =
+{
+#ifdef USART1
+    {USART1, USART1_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+#endif
+
+#ifdef USART2
+    {USART2, USART2_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+#endif
+
+#ifdef USART3
+    {USART3, USART3_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+#endif
+
+#ifdef UART4
+    {UART4, UART4_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+#endif
+
+#ifdef UART5
+    {UART5, UART5_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+#endif
+
+#ifdef USART6
+    {USART6, USART6_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5},
+#endif
+
+#ifdef UART7
+    {UART7, UART7_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5},
+#endif
+
+#ifdef UART8
+    {UART8, UART8_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5},
+#endif
+};
+#endif
 
 
 static const DMA_Stream_IRQ_Map dma_stream_irq_map[] =
