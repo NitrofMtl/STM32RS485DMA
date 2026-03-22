@@ -1,136 +1,82 @@
 #include "board_config.h"
 
 
-static const SerialPinMap serial_pin_map[] =
-{
-#if SERIAL_HOWMANY > 0
-    {
-        &Serial1, SERIAL1_TX, SERIAL1_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 1
-    {
-        &Serial2, SERIAL2_TX, SERIAL2_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 2
-    {
-        &Serial3, SERIAL3_TX, SERIAL3_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 3
-    {
-        &Serial4, SERIAL4_TX, SERIAL4_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 4
-    {
-        &Serial5, SERIAL5_TX, SERIAL5_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 5
-    {
-        &Serial6, SERIAL6_TX, SERIAL6_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 6
-    {
-        &Serial7, SERIAL7_TX, SERIAL7_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 7
-    {
-        &Serial8, SERIAL8_TX, SERIAL8_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 8
-    {
-        &Serial9, SERIAL9_TX, SERIAL9_RX,
-    },
-#endif
-#if SERIAL_HOWMANY > 9
-    {
-        &Serial10, SERIAL10_TX, SERIAL10_RX,
-    },
-#endif
-};
-
 #ifdef RS485DMA_HAVE_DMAMUX
 static const UART_DMA_Map uart_dma_map[] =
 {
 #ifdef USART1
-    {USART1, USART1_IRQn, DMA_REQUEST_USART1_RX, DMA_REQUEST_USART1_TX},
+    {USART1, USART1_IRQn, DMA_REQUEST_USART1_RX, DMA_REQUEST_USART1_TX, DMA1_Stream0, DMA1_Stream1},
 #endif
 
 #ifdef USART2
-    {USART2, USART2_IRQn, DMA_REQUEST_USART2_RX, DMA_REQUEST_USART2_TX},
+    {USART2, USART2_IRQn, DMA_REQUEST_USART2_RX, DMA_REQUEST_USART2_TX, DMA1_Stream2, DMA1_Stream3},
 #endif
 
 #ifdef USART3
-    {USART3, USART3_IRQn, DMA_REQUEST_USART3_RX, DMA_REQUEST_USART3_TX},
+    {USART3, USART3_IRQn, DMA_REQUEST_USART3_RX, DMA_REQUEST_USART3_TX, DMA1_Stream4, DMA1_Stream5},
 #endif
 
 #ifdef UART4
-    {UART4, UART4_IRQn, DMA_REQUEST_UART4_RX, DMA_REQUEST_UART4_TX},
+    {UART4, UART4_IRQn, DMA_REQUEST_UART4_RX, DMA_REQUEST_UART4_TX, DMA1_Stream6, DMA1_Stream7},
 #endif
 
 #ifdef UART5
-    {UART5, UART5_IRQn, DMA_REQUEST_UART5_RX, DMA_REQUEST_UART5_TX},
+    {UART5, UART5_IRQn, DMA_REQUEST_UART5_RX, DMA_REQUEST_UART5_TX, DMA2_Stream0, DMA2_Stream1},
 #endif
 
 #ifdef USART6
-    {USART6, USART6_IRQn, DMA_REQUEST_USART6_RX, DMA_REQUEST_USART6_TX},
+    {USART6, USART6_IRQn, DMA_REQUEST_USART6_RX, DMA_REQUEST_USART6_TX, DMA2_Stream2, DMA2_Stream3},
 #endif
 
 #ifdef UART7
-    {UART7, UART7_IRQn, DMA_REQUEST_UART7_RX, DMA_REQUEST_UART7_TX},
+    {UART7, UART7_IRQn, DMA_REQUEST_UART7_RX, DMA_REQUEST_UART7_TX, DMA2_Stream4, DMA2_Stream5},
 #endif
 
 #ifdef UART8
-    {UART8, UART8_IRQn, DMA_REQUEST_UART8_RX, DMA_REQUEST_UART8_TX},
+    {UART8, UART8_IRQn, DMA_REQUEST_UART8_RX, DMA_REQUEST_UART8_TX, DMA2_Stream6, DMA2_Stream7},
 #endif
 
 #ifdef UART9
-    {UART9, UART9_IRQn, DMA_REQUEST_UART9_RX, DMA_REQUEST_UART9_TX},
+    {UART9, UART9_IRQn, DMA_REQUEST_UART9_RX, DMA_REQUEST_UART9_TX, DMA2_Stream0, DMA2_Stream1},
 #endif
 
 #ifdef USART10
-    {USART10, USART10_IRQn, DMA_REQUEST_USART10_RX, DMA_REQUEST_USART10_TX},
+    {USART10, USART10_IRQn, DMA_REQUEST_USART10_RX, DMA_REQUEST_USART10_TX, DMA2_Stream1, DMA2_Stream2},
 #endif
 };
 #else
 static const UART_DMA_Map uart_dma_map[] =
 {
 #ifdef USART1
-    {USART1, USART1_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+    {USART1, USART1_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4, DMA2_Stream2, DMA2_Stream7},
 #endif
 
 #ifdef USART2
-    {USART2, USART2_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+    {USART2, USART2_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4, DMA1_Stream5, DMA1_Stream6},
 #endif
 
 #ifdef USART3
-    {USART3, USART3_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+    {USART3, USART3_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4, DMA1_Stream1, DMA1_Stream3},
 #endif
 
 #ifdef UART4
-    {UART4, UART4_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+    {UART4, UART4_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4, DMA1_Stream2, DMA1_Stream4},
 #endif
 
 #ifdef UART5
-    {UART5, UART5_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4},
+    {UART5, UART5_IRQn, DMA_CHANNEL_4, DMA_CHANNEL_4, DMA1_Stream0, DMA1_Stream7},
 #endif
 
 #ifdef USART6
-    {USART6, USART6_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5},
+    {USART6, USART6_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5, DMA2_Stream1, DMA2_Stream6},
 #endif
 
 #ifdef UART7
-    {UART7, UART7_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5},
+    {UART7, UART7_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5, DMA1_Stream3, DMA1_Stream1},
 #endif
 
 #ifdef UART8
-    {UART8, UART8_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5},
+    {UART8, UART8_IRQn, DMA_CHANNEL_5, DMA_CHANNEL_5, DMA1_Stream6, DMA1_Stream0},
 #endif
 };
 #endif
@@ -192,57 +138,28 @@ static const DMA_Stream_IRQ_Map dma_stream_irq_map[] =
 };
 
 
-constexpr RS485DMA_config RS485board_config[] =
+const RS485DMA_config RS485DMA_config::fromPins(PinName tx, PinName rx)
 {
-#if defined(ARDUINO_OPTA)
-    {
-        .txPin = PB_10,
-        .rxPin = PB_11,
-        .rxStream = DMA1_Stream0,
-        .txStream = DMA1_Stream1,
-    },
-#endif
-};
+    RS485DMA_config config{};
 
+    config.txPin = tx;
+    config.rxPin = rx;
 
-const RS485DMA_config* getRS485DMAConfig(USART_TypeDef* usart)
-{
-    for (const RS485DMA_config& config : RS485board_config) {
-        if (config.getUsartInstance() == usart) return &config;
+    const UART_DMA_Map* usartMap = config.find_uart_map();
+    if (!usartMap) {
+        // handle invalid pin combination
+        config.rxStream = nullptr;
+        config.txStream = nullptr;
+        return config;
     }
-    return nullptr; // unknown USART
+    config.rxStream = usartMap->rx_stream;
+    config.txStream = usartMap->tx_stream;
+
+    return config;
 }
 
 
-const RS485DMA_config* RS485DMA_config::fromPins(PinName tx, PinName rx)
-{
-   auto instance = pinmap_peripheral(tx, PinMap_UART_TX);
-    if (instance == NC) {
-        //must return and invalidate obj, rs485 class MUST check for validity...
-        return nullptr;
-    }
-    auto instance_rx = pinmap_peripheral(rx, PinMap_UART_RX);
-    if (instance != instance_rx) {
-        return nullptr;
-    }
-
-    return getRS485DMAConfig(reinterpret_cast<USART_TypeDef*>(instance));
-}
-
-
-const RS485DMA_config* RS485DMA_config::fromPins(uint32_t txPin, uint32_t rxPin)
-{
-    PinName tx = digitalPinToPinName(txPin);
-    PinName rx = digitalPinToPinName(rxPin);
-
-    if (tx == NC || rx == NC) {
-        return nullptr;
-    }
-    return fromPins(tx, rx);
-}
-
-
-RS485DMA_config RS485DMA_config::fromPins(PinName tx, PinName rx, DMA_Stream_TypeDef* rxStream, DMA_Stream_TypeDef* txStream)
+const RS485DMA_config RS485DMA_config::fromPins(PinName tx, PinName rx, DMA_Stream_TypeDef* rxStream, DMA_Stream_TypeDef* txStream)
 {
     RS485DMA_config config{};
 
@@ -255,26 +172,12 @@ RS485DMA_config RS485DMA_config::fromPins(PinName tx, PinName rx, DMA_Stream_Typ
 }
 
 
-const RS485DMA_config* RS485DMA_config::fromSerial(const HardwareSerial* serial)
-{
-    if (serial == nullptr) return nullptr;
-
-    for (const SerialPinMap& serialMap : serial_pin_map)
-    {
-        if (serialMap.serial == serial) {
-            return fromPins(serialMap.txPin, serialMap.rxPin);
-        }
-    }
-    return nullptr;
-}
-
-
 USART_TypeDef* RS485DMA_config::getUsartInstance() const
 {
     if (txPin == NC || rxPin == NC) return nullptr;
 
-    auto instance = pinmap_peripheral(txPin, PinMap_UART_TX);
-    if (instance == NC) {
+    USART_TypeDef* instance = static_cast<USART_TypeDef*>(pinmap_peripheral(txPin, PinMap_UART_TX));
+    if (instance == reinterpret_cast<USART_TypeDef*>(NC)){
         //must return and invalidate obj, rs485 class MUST check for validity...
         return nullptr;
     }

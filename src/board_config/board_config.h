@@ -22,16 +22,9 @@ struct UART_DMA_Map
     uint32_t rxChannel;
     uint32_t txChannel;
 #endif
+    DMA_Stream_TypeDef* rx_stream;
+    DMA_Stream_TypeDef* tx_stream;
 };
-
-/*struct UART_DMA_Map
-{
-    USART_TypeDef* instance;
-    IRQn_Type irqn;
-    uint32_t dma_rx_request;
-    uint32_t dma_tx_request;
-};*/
-
 
 struct DMA_Stream_IRQ_Map
 {
@@ -47,10 +40,8 @@ struct RS485DMA_config
     DMA_Stream_TypeDef* rxStream;
     DMA_Stream_TypeDef* txStream;
 
-    static const RS485DMA_config* fromPins(PinName tx, PinName rx);
-    static const RS485DMA_config* fromPins(uint32_t txPin, uint32_t rxPin);
-    static const RS485DMA_config* fromSerial(const HardwareSerial* serial);
-    static RS485DMA_config fromPins(PinName tx, PinName rx, DMA_Stream_TypeDef* rxStream, DMA_Stream_TypeDef* txStream);
+    static const RS485DMA_config fromPins(PinName tx, PinName rx);
+    static const RS485DMA_config fromPins(PinName tx, PinName rx, DMA_Stream_TypeDef* rxStream, DMA_Stream_TypeDef* txStream);
     GPIO_InitTypeDef uart_gpio() const;
     USART_TypeDef* getUsartInstance() const;
     const UART_DMA_Map* find_uart_map() const;
@@ -59,8 +50,7 @@ struct RS485DMA_config
 
 
 // Common API
-//extern const RS485DMA_config* getRS485DMAConfig(HardwareSerial& serial);
-extern const RS485DMA_config* getRS485DMAConfig(USART_TypeDef* usart);
+//extern const RS485DMA_config* getRS485DMAConfig(USART_TypeDef* usart);
 
 // ======================================================
 // UART CLOCK ENABLE
@@ -124,3 +114,12 @@ inline uint16_t pinToMask(PinName pin)
 {
     return static_cast<uint16_t>(1U << STM_PIN(pin));
 }
+
+#if defined(ARDUINO_OPTA)
+constexpr RS485DMA_config OPTA_DefaultConfigs{
+    .txPin = PB_10,
+    .rxPin = PB_11,
+    .rxStream = DMA1_Stream0,
+    .txStream = DMA1_Stream1
+}
+#endif

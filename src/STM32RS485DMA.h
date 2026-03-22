@@ -4,11 +4,6 @@
 #include <Arduino.h>
 #include "board_config/board_config.h"
 
-#ifndef ARDUINO_ARCH_MBED
-#error "RS485DMAClass: This library only supports STM32-based boards (e.g. Opta, Portenta)"
-#endif
-
-// RS485DMA_platform.h
 
 #if (__CORTEX_M == 7)
 #define RS485DMA_HAVE_DCACHE
@@ -27,20 +22,50 @@
 #define RS485_DMA_DCACHE_INVALIDATE(addr, size)
 #endif
 
-#if !(defined(ARDUINO_OPTA) || defined(ARDUINO_PORTENTA_H7) || defined(ARDUINO_GIGA))
-// Add more boards here when tested
-#error "RS485DMAClass: Unsupported STM32 board (only Opta, Portenta H7, Giga)"
+#if !(defined(STM32H7xx) || defined(STM32F7xx) || defined(STM32F4xx) || defined(STM32F2xx))
+#error "STM32RS485DMA: Unsupported MCU family"
 #endif
 
 
 //Serial pins definition for each Serial available, could include RE and DE or they could be set on constructor
 #if defined(ARDUINO_OPTA)
-#define RS485_OPTA_DEFAULT_PINS Serial2, SERIAL2_TX, PB_14, PB_13
+//TO DO define default config for default object
+#define RS485_OPTA_DEFAULT_PINS PB_14, PB_13
 #elif defined(ARDUINO_GIGA)
 // TODO: No known default DE/RE pins for GIGA R1.
 #elif defined(ARDUINO_PORTENTA_H7)
 // TODO: No known default DE/RE pins for Portenta H7.
 // Please contribute if you have tested hardware.
+#endif
+
+#ifdef UART_CLEAR_TCF
+#define RS485DMA_CLEAR_TCF_FLAGS(h) __HAL_UART_CLEAR_FLAG(h, UART_CLEAR_TCF)
+#else
+#define RS485DMA_CLEAR_TCF_FLAGS(h)
+#endif 
+
+#ifdef UART_CLEAR_TCF
+#define RS485DMA_CLEAR_TCF_FLAGS(h) __HAL_UART_CLEAR_FLAG(h, UART_CLEAR_TCF)
+#else
+#define RS485DMA_CLEAR_TCF_FLAGS(h)
+#endif
+
+#ifdef UART_CLEAR_RTOF
+#define RS485DMA_CLEAR_RTOF_FLAGS(h) __HAL_UART_CLEAR_FLAG(h, UART_CLEAR_RTOF)
+#else
+#define RS485DMA_CLEAR_RTOF_FLAGS(h)
+#endif
+
+#ifdef UART_CLEAR_PEF
+#define RS485DMA_CLEAR_PEF_FLAGS(h) __HAL_UART_CLEAR_FLAG(h, UART_CLEAR_PEF)
+#else
+#define RS485DMA_CLEAR_PEF_FLAGS(h)
+#endif
+
+#ifdef UART_CLEAR_TXFECF
+#define RS485DMA_CLEAR_TXFECF_FLAGS(h) __HAL_UART_CLEAR_FLAG(h, UART_CLEAR_TXFECF)
+#else
+#define RS485DMA_CLEAR_TXFECF_FLAGS(h)
 #endif
 
 #define RS485_DEFAULT_PREDELAY 50 // us
@@ -53,11 +78,10 @@ constexpr float DEFAULT_CHAR_TIME = 3.5f;
 
 class RS485DMAClass : public Stream {
   public:
-  RS485DMAClass(HardwareSerial& serial, int , int, int) = delete;
-  RS485DMAClass(HardwareSerial& serial, PinName txPin, PinName dePin, PinName rePin);
-  RS485DMAClass(const RS485DMA_config* config, int , int, int) = delete;
+  RS485DMAClass(const RS485DMA_config* config, int, int) = delete;
   RS485DMAClass(const RS485DMA_config* config) = delete;
-  RS485DMAClass(const RS485DMA_config* config, PinName txPin, PinName dePin, PinName rePin);
+  RS485DMAClass(const RS485DMA_config* config, PinName dePin, PinName rePin);
+
   bool begin(unsigned long baudrate, uint16_t config, int predelay, int postdelay);
 
   // Convenience overloads
@@ -129,7 +153,7 @@ class RS485DMAClass : public Stream {
   unsigned long _preDelay = 0;
   unsigned long _postDelay = 0;
 
-  PinName _txPin;
+  //PinName _txPin;
   PinName _dePin;
   PinName _rePin;
   
@@ -173,6 +197,6 @@ class RS485DMAClass : public Stream {
 };
 
 
-// Optional global instance for ArduinoModbus compatibility
+// Optional global instance for STM32DMAModbus compatibility
 extern RS485DMAClass RS485;
 

@@ -8,7 +8,7 @@ Designed for deterministic timing, low CPU usage, and industrial protocols
 ---
 
 ## Features
-- Full-duplex RS485 using DMA (TX + RX)
+- Half-duplex RS485 using DMA (TX + RX)
 - RX idle detection using UART IDLE
 - Deterministic DE/RE timing
 - Arduino `Stream` compatible
@@ -102,10 +102,7 @@ RS485.receive();
 
 ````
 RS485.setDelays(predelay_us, postdelay_us);
-RS485.setRxIdleTime(idle_time_us);
-
 ````
-setDelays(predelay_us, postdelay_us)
 
 Controls driver enable timing (same behavior as ArduinoRS485):
 
@@ -118,9 +115,9 @@ These values depend on the RS485 transceiver and baud rate.
 Same semantics as `ArduinoRS485.setDelays()`.
 
 ---
-
-`setRxIdleTime(idle_time_us)`
-
+```
+setRxIdleTime(idle_time_us)
+```
 DMA-specific configuration.
 
 Sets the **total silent time** (in microseconds) required after the UART IDLE event

@@ -2,30 +2,17 @@
 #include "board_config/board_config.h"
 
 
-RS485DMAClass::RS485DMAClass(const RS485DMA_config* config, PinName txPin, PinName dePin, PinName rePin)
-: _config(config), _txPin(txPin), _dePin(dePin), _rePin(rePin)
+RS485DMAClass::RS485DMAClass(const RS485DMA_config* config, PinName dePin, PinName rePin)
+: _config(config), _dePin(dePin), _rePin(rePin)
 {
-
-       if (!hasValidConfig()) {
-        // No valid DMA config found for this Serial instance → stop here
-        while (1) {
-            // Hard fail: hang here so the dev notices the bug
-            // Could also blink LED_BUILTIN instead of blocking
-        }
-    }
-}
-
-
-RS485DMAClass::RS485DMAClass(HardwareSerial& serial, PinName txPin, PinName dePin, PinName rePin) :
-    RS485DMAClass(RS485DMA_config::fromSerial(&serial), txPin, dePin, rePin)
-{
+    //config invalidation move into config to help debuggin
 }
 
 
 bool RS485DMAClass::begin(unsigned long baudrate, uint16_t config, int predelay, int postdelay) {
     if (baudrate <= 0) return false;
 
-    if (!_config) return false; // explicit failure
+    if (!hasValidConfig()) return false; // explicit failure
 
     setDelays(predelay, postdelay);
 
@@ -121,7 +108,7 @@ int RS485DMAClass::readFrame(uint8_t* buffer, size_t bufferSize)
         return 0;
     }
 
-    size_t len = min(bufferSize, _frame.len);
+    size_t len = min(bufferSize, static_cast<size_t>(_frame.len));
 
     if (len + _rxTail <= DMA_RX_BUFFER_SIZE) {
         // contiguous
@@ -194,7 +181,9 @@ void RS485DMAClass::beginTransmission()
 
     if (_preDelay) delayMicroseconds(_preDelay);
 
-    __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_TCF | UART_CLEAR_TXFECF);
+    //__HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_TCF | UART_CLEAR_TXFECF);
+    RS485DMA_CLEAR_TCF_FLAGS(&_huart);
+    RS485DMA_CLEAR_TXFECF_FLAGS(&_huart);
 }
 
 
@@ -212,7 +201,11 @@ void RS485DMAClass::endTransmission()
     if (_rePin >= 0) digitalWrite(_rePin, LOW);
 
     // Clear TC flag (if needed) – safe to call
-    __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_TCF | UART_CLEAR_IDLEF | UART_CLEAR_OREF | UART_CLEAR_NEF);
+    //__HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_TCF | UART_CLEAR_IDLEF | UART_CLEAR_OREF | UART_CLEAR_NEF);
+    RS485DMA_CLEAR_TCF_FLAGS(&_huart);
+    __HAL_UART_CLEAR_IDLEFLAG(&_huart);
+    __HAL_UART_CLEAR_OREFLAG(&_huart);
+    __HAL_UART_CLEAR_NEFLAG(&_huart);
 
 }
 
@@ -226,8 +219,14 @@ void RS485DMAClass::receive()
     USART3->ICR = USART_ICR_FECF | USART_ICR_ORECF | USART_ICR_IDLECF | USART_ICR_RTOCF
                   | USART_ICR_PECF | USART_ICR_TCCF; // clear framing/overrun/idle/timeout/Noise/Parity
 #else
-    // Fallback: clear common flags using HAL macro
-    __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_FEF | UART_CLEAR_OREF | UART_CLEAR_IDLEF | UART_CLEAR_RTOF | UART_CLEAR_PEF);
+    //__HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_FEF | UART_CLEAR_OREF | UART_CLEAR_IDLEF | UART_CLEAR_RTOF | UART_CLEAR_PEF);
+    __HAL_UART_CLEAR_FEFLAG(&_huart);
+    __HAL_UART_CLEAR_OREFLAG(&_huart);
+    __HAL_UART_CLEAR_IDLEFLAG(&_huart);
+    RS485DMA_CLEAR_RTOF_FLAGS(&_huart);
+    RS485DMA_CLEAR_PEF_FLAGS(&_huart);
+    
+
 #endif
 
     // arm RX DMA if it's not already running
@@ -244,7 +243,8 @@ void RS485DMAClass::receive()
     //update rx tail pointer based on DMA counter (safe now that DMA armed)
     _rxTail = DMA_RX_BUFFER_SIZE - __HAL_DMA_GET_COUNTER(_huart.hdmarx);
 
-    __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
+    //__HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
+    __HAL_UART_CLEAR_IDLEFLAG(&_huart);
     __HAL_UART_ENABLE_IT(&_huart, UART_IT_IDLE);
 }
 
@@ -253,7 +253,7 @@ void RS485DMAClass::noReceive()
 {
     flush();
 
-    __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
+    __HAL_UART_CLEAR_IDLEFLAG(&_huart);
     __HAL_UART_DISABLE_IT(&_huart, UART_IT_IDLE);
     // Stop DMA safely
     auto inst = static_cast<DMA_Stream_TypeDef*>(_hdma_rx.Instance);
@@ -290,9 +290,13 @@ uint32_t RS485DMAClass::getUsecForNChar(float n)
 
     // --- Stop bits ---
     switch (_huart.Init.StopBits) {
+#ifdef UART_STOPBITS_0_5
         case UART_STOPBITS_0_5: bits += 0.5f; break;
+#endif
         case UART_STOPBITS_1:   bits += 1.0f; break;
+#ifdef UART_STOPBITS_1_5
         case UART_STOPBITS_1_5: bits += 1.5f; break;
+#endif
         case UART_STOPBITS_2:   bits += 2.0f; break;
         default: bits += 1.0f; break; // fallback
     }
@@ -346,8 +350,8 @@ void RS485DMAClass::sendBreak(uint32_t duration)
     digitalWrite(_rePin, HIGH);
 
     // Take UART TX pin into GPIO output low
-    pinMode(_txPin, OUTPUT);
-    digitalWrite(_txPin, LOW);
+    pinMode(_config->txPin, OUTPUT);
+    digitalWrite(_config->txPin, LOW);
 
     start = millis();
     while (millis() - start < duration) {
@@ -378,8 +382,8 @@ void RS485DMAClass::sendBreakMicroseconds(uint32_t duration)
     digitalWrite(_rePin, HIGH);
 
     // Take UART TX pin into GPIO output low
-    pinMode(_txPin, OUTPUT);
-    digitalWrite(_txPin, LOW);
+    pinMode(_config->txPin, OUTPUT);
+    digitalWrite(_config->txPin, LOW);
 
     start = micros();
     while (micros() - start < duration) {
@@ -463,7 +467,7 @@ void RS485DMAClass::invalidateRxCache(size_t offset, size_t length)
     uintptr_t aligned_end =
         ((startPtr + firstPart + CACHE_LINE - 1) & ~(CACHE_LINE - 1));
 
-    SCB_InvalidateDCache_by_Addr(
+    RS485_DMA_DCACHE_INVALIDATE(
         (uint32_t*)aligned_start,
         aligned_end - aligned_start
     );
@@ -543,9 +547,11 @@ void RS485DMAClass::setupUsart(uint32_t baudrate)
     _huart.Init.Mode = UART_MODE_TX_RX;
     _huart.Init.HwFlowCtl = UART_HWCONTROL_NONE;
     _huart.Init.OverSampling = UART_OVERSAMPLING_16;
+#if defined(STM32H7xx)
     _huart.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
     _huart.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
     _huart.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+#endif
 
     if (HAL_UART_Init(&_huart) != HAL_OK) {
         Serial.println("[RS485LIB] HAL UART Init failed");
@@ -570,7 +576,7 @@ bool RS485DMAClass::initDMA(uint16_t config)
 #if defined(RS485DMA_HAVE_DMAMUX)
     _hdma_rx.Init.Request = uartMap->dma_rx_request;
 #else
-    _hdma_rx.Init.Request = uartMap->rxChannel;
+    _hdma_rx.Init.Channel = uartMap->rxChannel;
 #endif
     _hdma_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
     _hdma_rx.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -598,7 +604,7 @@ bool RS485DMAClass::initDMA(uint16_t config)
 #if defined(RS485DMA_HAVE_DMAMUX)
     _hdma_tx.Init.Request = uartMap->dma_tx_request;
 #else
-    _hdma_tx.Init.Request = uartMap->txChannel;
+    _hdma_tx.Init.Channel = uartMap->txChannel;
 #endif
     _hdma_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
     _hdma_tx.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -661,14 +667,14 @@ void RS485DMAClass::usartIrqHandler()
        // --- TC: transmission complete ---
     if (__HAL_UART_GET_FLAG(&_huart, UART_FLAG_TC) &&
         __HAL_UART_GET_IT_SOURCE(&_huart, UART_IT_TC)) {
-        __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_TCF);
+        RS485DMA_CLEAR_TCF_FLAGS(&_huart);
         __HAL_UART_DISABLE_IT(&_huart, UART_IT_TC);
         onTxComplete();
         return;
     }
 
     if (__HAL_UART_GET_FLAG(&_huart, UART_FLAG_IDLE)) {
-        __HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
+        __HAL_UART_CLEAR_IDLEFLAG(&_huart);
         onRxIdleIRQ();
     }
 }
@@ -728,9 +734,13 @@ float RS485DMAClass::getBitsPerChar()
 
     // --- Stop bits ---
     switch (_huart.Init.StopBits) {
+#ifdef UART_STOPBITS_0_5
         case UART_STOPBITS_0_5: bits += 0.5f; break;
+#endif
         case UART_STOPBITS_1:   bits += 1.0f; break;
+#ifdef UART_STOPBITS_1_5
         case UART_STOPBITS_1_5: bits += 1.5f; break;
+#endif
         case UART_STOPBITS_2:   bits += 2.0f; break;
         default: bits += 1.0f; break; // fallback
     }
@@ -757,8 +767,12 @@ void RS485DMAClass::checkIrqHandlers() const
             case UART4_IRQn: Serial.println("UART4_IRQHandler"); break;
             case UART5_IRQn: Serial.println("UART5_IRQHandler"); break;
             case USART6_IRQn: Serial.println("USART6_IRQHandler"); break;
+#if SERIAL_HOWMANY > 6
             case UART7_IRQn: Serial.println("UART7_IRQHandler"); break;
+#endif
+#if SERIAL_HOWMANY > 7
             case UART8_IRQn: Serial.println("UART8_IRQHandler"); break;
+#endif
             default: Serial.println("Unknown USART IRQ"); break;
         }
     }
@@ -778,27 +792,13 @@ void RS485DMAClass::checkIrqHandlers() const
         }
     }
 
-    // Similarly, you could add RX DMA if you want
- /*   if (_config->rxStream != 0)
-    {
-        ///MUST do a mapper for rXStreamIRQ --> IRQn_Type rxIrq
-        Serial.print("RS485DMA: Ensure handler for ");
-        switch (rxIrqn)
-        {
-            case DMA1_Stream0_IRQn: Serial.println("DMA1_Stream0_IRQHandler (RX)"); break;
-            case DMA1_Stream1_IRQn: Serial.println("DMA1_Stream1_IRQHandler (RX)"); break;
-            case DMA1_Stream2_IRQn: Serial.println("DMA1_Stream2_IRQHandler (RX)"); break;
-            case DMA1_Stream3_IRQn: Serial.println("DMA1_Stream3_IRQHandler (RX)"); break;
-            default: Serial.println("Unknown RX DMA IRQ"); break;
-        }
-    }*/
 }
 
 
 #ifdef ARDUINO_OPTA
 #define RS485_USING_USART3
 #define RS485_USING_DMA1_Stream1
-RS485DMAClass RS485(RS485_OPTA_DEFAULT_PINS);
+RS485DMAClass RS485(OPTA_DefaultConfigs, RS485_OPTA_DEFAULT_PINS);
 #endif
 
 #ifdef RS485_USING_USART3
