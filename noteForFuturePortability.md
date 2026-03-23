@@ -68,11 +68,11 @@ with UART peripherals driven by DMA.
 
 ### Expected to work with configuration
 - STM32U5
-- STM32G4
+- STM32G4 --> TO DO NUCLEO-G474RE, NUCLEO-G431RB
 - STM32F7
 
 ### Experimental / community validated
-- STM32F4
+- STM32F4 --> compile-tested on Nucleo-F446RE
 - STM32L4 / L4+
 - STM32WB / WL
 - STM32F3

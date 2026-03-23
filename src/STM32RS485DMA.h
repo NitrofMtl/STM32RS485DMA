@@ -36,6 +36,10 @@
 #elif defined(ARDUINO_PORTENTA_H7)
 // TODO: No known default DE/RE pins for Portenta H7.
 // Please contribute if you have tested hardware.
+#ifdef(ARDUINO_PORTENTA_MACHINE_CONTROL) //macro does not exsist on arduino, user must define it
+#define MACHINE_CONTROL_DEFAULT_TXRX_PINS PA_0, PI_9
+#define MACHINE_CONTROL_DEFAULT_DERE_PINS PI_13, PI_10
+#endif
 #endif
 
 #ifdef UART_CLEAR_TCF
