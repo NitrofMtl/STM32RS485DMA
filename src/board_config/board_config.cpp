@@ -176,16 +176,14 @@ USART_TypeDef* RS485DMA_config::getUsartInstance() const
 {
     if (txPin == NC || rxPin == NC) return nullptr;
 
-    USART_TypeDef* instance = static_cast<USART_TypeDef*>(pinmap_peripheral(txPin, PinMap_UART_TX));
-    if (instance == reinterpret_cast<USART_TypeDef*>(NC)){
-        //must return and invalidate obj, rs485 class MUST check for validity...
+    uintptr_t periph_tx = (uintptr_t)pinmap_peripheral(txPin, PinMap_UART_TX);
+    uintptr_t periph_rx = (uintptr_t)pinmap_peripheral(rxPin, PinMap_UART_RX);
+
+    if (periph_tx == (uintptr_t)NC ||  periph_tx != periph_rx) {
         return nullptr;
     }
-    auto instance_rx = pinmap_peripheral(rxPin, PinMap_UART_RX);
-    if (instance != instance_rx) {
-        return nullptr;
-    }
-    return reinterpret_cast<USART_TypeDef*>(instance);
+
+    return reinterpret_cast<USART_TypeDef*>(periph_tx);
 }
 
 

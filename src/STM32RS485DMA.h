@@ -23,7 +23,7 @@
 #endif
 
 #if !(defined(STM32H7xx) || defined(STM32F7xx) || defined(STM32F4xx) || defined(STM32F2xx))
-#error "STM32RS485DMA: Unsupported MCU family"
+//#error "STM32RS485DMA: Unsupported MCU family"
 #endif
 
 

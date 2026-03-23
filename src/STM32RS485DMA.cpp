@@ -798,7 +798,7 @@ void RS485DMAClass::checkIrqHandlers() const
 #ifdef ARDUINO_OPTA
 #define RS485_USING_USART3
 #define RS485_USING_DMA1_Stream1
-RS485DMAClass RS485(OPTA_DefaultConfigs, RS485_OPTA_DEFAULT_PINS);
+RS485DMAClass RS485(&OPTA_DefaultConfigs, RS485_OPTA_DEFAULT_PINS);
 #endif
 
 #ifdef RS485_USING_USART3

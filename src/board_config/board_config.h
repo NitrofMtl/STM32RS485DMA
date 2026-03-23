@@ -121,5 +121,5 @@ constexpr RS485DMA_config OPTA_DefaultConfigs{
     .rxPin = PB_11,
     .rxStream = DMA1_Stream0,
     .txStream = DMA1_Stream1
-}
+};
 #endif

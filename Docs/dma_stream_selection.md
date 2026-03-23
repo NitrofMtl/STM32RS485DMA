@@ -87,3 +87,59 @@ Ensure no collisions with other peripherals.
 
 Implication:
 RS485DMA cannot automatically guarantee conflict-free operation for H7 beyond the default mapping. Users are responsible for validation.
+
+
+
+
+
+### 🔹 1. What is a DMA conflict?
+
+A DMA conflict occurs when two peripherals attempt to use the same DMA stream simultaneously.
+
+Each DMA stream can only serve one peripheral at a time.
+
+### 🔹 2. Why it happens
+DMA resources are limited and shared across peripherals.
+
+The library selects default streams automatically, but other peripherals
+(SPI, ADC, additional UARTs, etc.) may also use DMA.
+
+### 🔹 3. Symptoms of a conflict
+
+Common symptoms include:
+
+- No data received (RX never triggers)
+- Transmission never completes
+- Corrupted or partial data
+- Interrupt handlers not firing
+- HAL state stuck (busy / not ready)
+
+### 🔹 4. Why it is not detected automatically
+The STM32 HAL does not provide a reliable way to detect DMA stream conflicts at runtime.
+
+Conflicts depend on the full application, including other libraries and peripherals.
+
+### 🔹 5. How to fix it
+Use the advanced `fromPins()` variant to manually assign DMA streams:
+
+```cpp
+RS485DMA_config cfg = RS485DMA_config::fromPins(
+    txPin,
+    rxPin,
+    rxStream,
+    txStream
+);
+
+```
+
+Select streams that are not used by other peripherals.
+
+
+---
+
+### 🔹 6. Practical advice
+
+- Start with default configuration
+- If issues appear, try different DMA streams
+- Avoid reusing streams already used by SPI, ADC, or other UARTs
+
