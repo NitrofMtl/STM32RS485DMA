@@ -2,15 +2,23 @@
 
 ---
 
-## [Unreleased]
+## [0.8.0] - 2026-03-25
 
 ### Added
-- Planned default pin mappings for:
-  - Arduino GIGA R1
-  - Arduino Portenta
-  - Arduino Machine Control
+- Now compile on (Still need to be tested):
+  - nucleo_f446re
+  - nucleo_f401re
+  - nucleo_f767zi
+  - nucleo_f722ze
+  - nucleo_h743zi
+- IRQHandlers identification helper `checkIrqHandlers()`
+
+### Changed
+- now only constructor with `(const RS485DMA_config* config, PinName dePin, PinName rePin)` is valid
 
 ---
+
+
 
 ## [0.7.0] - 2026-03-11
 
