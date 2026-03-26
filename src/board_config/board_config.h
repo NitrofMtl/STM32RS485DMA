@@ -49,9 +49,6 @@ struct RS485DMA_config
 };
 
 
-// Common API
-//extern const RS485DMA_config* getRS485DMAConfig(USART_TypeDef* usart);
-
 // ======================================================
 // UART CLOCK ENABLE
 // ======================================================
@@ -70,6 +67,15 @@ static inline void RS485DMA_EnableUARTClock(USART_TypeDef *instance)
 #if defined(UART5)
     else if (instance == UART5)  __HAL_RCC_UART5_CLK_ENABLE();
 #endif
+#if defined(USART6)
+    else if (instance == USART6)  __HAL_RCC_USART6_CLK_ENABLE();
+#endif
+#if defined(UART7)
+    else if (instance == UART7)  __HAL_RCC_UART7_CLK_ENABLE();
+#endif
+#if defined(UART8)
+    else if (instance == UART8)  __HAL_RCC_UART8_CLK_ENABLE();
+#endif
 }
 
 
@@ -84,9 +90,6 @@ static inline void RS485DMA_EnableDMAClock(void)
 #if defined(DMA2)
     __HAL_RCC_DMA2_CLK_ENABLE();
 #endif
-#if defined(BDMA)
-    __HAL_RCC_BDMA_CLK_ENABLE();
-#endif
 }
 
 
@@ -99,10 +102,18 @@ static inline void RS485DMA_EnableGPIOClock(GPIO_TypeDef *port)
     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
     else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
     else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+#ifdef GPIOE
     else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+#endif
+#ifdef GPIOF
     else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+#endif
+#ifdef GPIOG
     else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+#endif
+#ifdef GPIOH
     else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+#endif
 }
 
 inline GPIO_TypeDef* pinNameToPort(PinName pin)

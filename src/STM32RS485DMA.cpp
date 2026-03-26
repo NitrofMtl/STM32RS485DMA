@@ -181,7 +181,6 @@ void RS485DMAClass::beginTransmission()
 
     if (_preDelay) delayMicroseconds(_preDelay);
 
-    //__HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_TCF | UART_CLEAR_TXFECF);
     RS485DMA_CLEAR_TCF_FLAGS(&_huart);
     RS485DMA_CLEAR_TXFECF_FLAGS(&_huart);
 }
@@ -200,8 +199,6 @@ void RS485DMAClass::endTransmission()
     if (_dePin >= 0) digitalWrite(_dePin, LOW);
     if (_rePin >= 0) digitalWrite(_rePin, LOW);
 
-    // Clear TC flag (if needed) – safe to call
-    //__HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_TCF | UART_CLEAR_IDLEF | UART_CLEAR_OREF | UART_CLEAR_NEF);
     RS485DMA_CLEAR_TCF_FLAGS(&_huart);
     __HAL_UART_CLEAR_IDLEFLAG(&_huart);
     __HAL_UART_CLEAR_OREFLAG(&_huart);
@@ -219,7 +216,6 @@ void RS485DMAClass::receive()
     USART3->ICR = USART_ICR_FECF | USART_ICR_ORECF | USART_ICR_IDLECF | USART_ICR_RTOCF
                   | USART_ICR_PECF | USART_ICR_TCCF; // clear framing/overrun/idle/timeout/Noise/Parity
 #else
-    //__HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_FEF | UART_CLEAR_OREF | UART_CLEAR_IDLEF | UART_CLEAR_RTOF | UART_CLEAR_PEF);
     __HAL_UART_CLEAR_FEFLAG(&_huart);
     __HAL_UART_CLEAR_OREFLAG(&_huart);
     __HAL_UART_CLEAR_IDLEFLAG(&_huart);
@@ -234,7 +230,7 @@ void RS485DMAClass::receive()
     if ((inst->CR & DMA_SxCR_EN) == 0) {
         if (HAL_UART_Receive_DMA(&_huart, (uint8_t*)_dma_rx_buffer, DMA_RX_BUFFER_SIZE) != HAL_OK) {
             Serial.println("[RS485LIB] HAL_UART_Receive_DMA failed");
-            // try to recover: abort + clear flags + return
+            // try to recover: abort
             HAL_UART_AbortReceive(&_huart);
             return;
         }
@@ -243,7 +239,6 @@ void RS485DMAClass::receive()
     //update rx tail pointer based on DMA counter (safe now that DMA armed)
     _rxTail = DMA_RX_BUFFER_SIZE - __HAL_DMA_GET_COUNTER(_huart.hdmarx);
 
-    //__HAL_UART_CLEAR_FLAG(&_huart, UART_CLEAR_IDLEF);
     __HAL_UART_CLEAR_IDLEFLAG(&_huart);
     __HAL_UART_ENABLE_IT(&_huart, UART_IT_IDLE);
 }
@@ -319,7 +314,7 @@ size_t RS485DMAClass::write(const uint8_t *buffer, size_t size)
 
     while (size > 0) {
         if (!DMATxTimeOut()) {
-            Serial.println("[RS485LIB] TX DMA timeout — aborting previous transfer");
+            Serial.println("[RS485DMA] TX DMA timeout — aborting previous transfer");
             return written;
         }
         size_t chunk = (size > DMA_TX_BUFFER_SIZE) ? DMA_TX_BUFFER_SIZE : size;
@@ -588,7 +583,7 @@ bool RS485DMAClass::initDMA(uint16_t config)
     _hdma_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
 
     if (HAL_DMA_Init(&_hdma_rx) != HAL_OK) {
-        Serial.println("[RS485LIB] HAL DMA Init failed");
+        Serial.println("[RS485DMA] HAL DMA Init failed");
         return false;
     }
      
@@ -600,7 +595,6 @@ bool RS485DMAClass::initDMA(uint16_t config)
 
     // ---------- TX DMA SETUP ----------
     _hdma_tx.Instance = _config->txStream;//dmaTxStream;
-    //_hdma_tx.Init.Request = uartMap->dma_tx_request;
 #if defined(RS485DMA_HAVE_DMAMUX)
     _hdma_tx.Init.Request = uartMap->dma_tx_request;
 #else
@@ -618,7 +612,7 @@ bool RS485DMAClass::initDMA(uint16_t config)
     HAL_UART_AbortTransmit(&_huart);
 
     if (HAL_DMA_Init(&_hdma_tx) != HAL_OK) {
-        Serial.println("[RS485LIB] HAL TX DMA Init failed");
+        Serial.println("[RS485DMA] HAL TX DMA Init failed");
         return false;
     }
 
@@ -761,18 +755,55 @@ void RS485DMAClass::checkIrqHandlers() const
         Serial.print("RS485DMA: Ensure handler for ");
         switch (uartMap->irqn)
         {
-            case USART1_IRQn: Serial.println("USART1_IRQHandler"); break;
-            case USART2_IRQn: Serial.println("USART2_IRQHandler"); break;
-            case USART3_IRQn: Serial.println("USART3_IRQHandler"); break;
-            case UART4_IRQn: Serial.println("UART4_IRQHandler"); break;
-            case UART5_IRQn: Serial.println("UART5_IRQHandler"); break;
-            case USART6_IRQn: Serial.println("USART6_IRQHandler"); break;
-#if SERIAL_HOWMANY > 6
-            case UART7_IRQn: Serial.println("UART7_IRQHandler"); break;
+#ifdef USART1
+            case USART1_IRQn:
+                Serial.println("USART1_IRQHandler");
+                break;
 #endif
-#if SERIAL_HOWMANY > 7
-            case UART8_IRQn: Serial.println("UART8_IRQHandler"); break;
+
+#ifdef USART2
+            case USART2_IRQn:
+                Serial.println("USART2_IRQHandler");
+                break;
 #endif
+
+#ifdef USART3
+            case USART3_IRQn:
+                Serial.println("USART3_IRQHandler");
+                break;
+#endif
+
+#ifdef UART4
+            case UART4_IRQn:
+                Serial.println("UART4_IRQHandler");
+                break;
+#endif
+
+#ifdef UART5
+            case UART5_IRQn:
+                Serial.println("UART5_IRQHandler");
+                break;
+#endif
+
+#ifdef USART6
+            case USART6_IRQn:
+                Serial.println("USART6_IRQHandler");
+                break;
+#endif
+
+#ifdef UART7
+            case UART7_IRQn:
+                Serial.println("UART7_IRQHandler");
+                break;
+#endif
+
+#ifdef UART8
+            case UART8_IRQn:
+                Serial.println("UART8_IRQHandler");
+                break;
+#endif
+
+
             default: Serial.println("Unknown USART IRQ"); break;
         }
     }
@@ -788,6 +819,18 @@ void RS485DMAClass::checkIrqHandlers() const
             case DMA1_Stream1_IRQn: Serial.println("DMA1_Stream1_IRQHandler"); break;
             case DMA1_Stream2_IRQn: Serial.println("DMA1_Stream2_IRQHandler"); break;
             case DMA1_Stream3_IRQn: Serial.println("DMA1_Stream3_IRQHandler"); break;
+            case DMA1_Stream4_IRQn: Serial.println("DMA1_Stream4_IRQHandler"); break;
+            case DMA1_Stream5_IRQn: Serial.println("DMA1_Stream5_IRQHandler"); break;
+            case DMA1_Stream6_IRQn: Serial.println("DMA1_Stream6_IRQHandler"); break;
+            case DMA1_Stream7_IRQn: Serial.println("DMA1_Stream7_IRQHandler"); break;
+            case DMA2_Stream0_IRQn: Serial.println("DMA2_Stream0_IRQHandler"); break;
+            case DMA2_Stream1_IRQn: Serial.println("DMA2_Stream1_IRQHandler"); break;
+            case DMA2_Stream2_IRQn: Serial.println("DMA2_Stream2_IRQHandler"); break;
+            case DMA2_Stream3_IRQn: Serial.println("DMA2_Stream3_IRQHandler"); break;
+            case DMA2_Stream4_IRQn: Serial.println("DMA2_Stream4_IRQHandler"); break;
+            case DMA2_Stream5_IRQn: Serial.println("DMA2_Stream5_IRQHandler"); break;
+            case DMA2_Stream6_IRQn: Serial.println("DMA2_Stream6_IRQHandler"); break;
+            case DMA2_Stream7_IRQn: Serial.println("DMA2_Stream7_IRQHandler"); break;
             default: Serial.println("Unknown TX DMA IRQ"); break;
         }
     }

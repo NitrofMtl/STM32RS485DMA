@@ -63,24 +63,40 @@ This avoids conflicts with other libraries.
 RS485DMA is designed for STM32 microcontrollers using the STM32 HAL
 with UART peripherals driven by DMA.
 
-### Validated
-- Arduino Opta (STM32H7) USART3
+### Validated (runtime tested)
 
-### Expected to work with configuration
-- STM32U5
-- STM32G4 --> TO DO NUCLEO-G474RE, NUCLEO-G431RB
-- STM32F7
+- STM32H7 → tested on Arduino Opta
+
+---
+
+### Supported (compile-tested)
+
+- STM32F7 → tested on NUCLEO-F767ZI, NUCLEO-F722ZE, NUCLEO-F743ZI
+- STM32F4 → tested on NUCLEO-F446RE, NUCLEO-F401RE  
+
+---
+
+### Unsupported (different DMA architecture)
+- STM32U5 (GPDMA)
+- STM32G4 (DMA channels, no streams)
+- STM32L4 / L4+ (DMA channels + DMAMUX)
+- STM32WB / WL (DMA channels + DMAMUX)
+- STM32F3 (DMA channels)
+---
 
 ### Experimental / community validated
-- STM32F4 --> compile-tested on Nucleo-F446RE
 - STM32L4 / L4+
 - STM32WB / WL
 - STM32F3
-
-### Not currently targeted
 - STM32F1 / F0 / L0 / C0
-- Non-STM32 platforms
 
-Porting to additional STM32 families typically requires only
-DMA request mapping and IRQ configuration, not changes to core logic.
+---
+
+Non-STM32 platforms are not supported.
+
+---
+
+Porting to additional STM32 families typically requires adapting
+DMA mapping and IRQ configuration. However, families using a different
+DMA architecture (e.g. channel-based or GPDMA) are not directly compatible.
 

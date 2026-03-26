@@ -25,14 +25,6 @@ Designed for deterministic timing, low CPU usage, and industrial protocols
   - UART + DMA RX/TX
   - Optional DMAMUX (recommended)
 
-> Other STM32 targets are expected to work but require board-specific configuration.
-
-Planned board mappings:
-
-- Arduino GIGA R1 WiFi
-- Arduino Portenta family
-- Arduino Machine Control
-
 Community testers are welcome.
 
 Looking for testers for Portenta H7 / GIGA R1 / Machine Control — see STM32duino [discussions/2903](https://github.com/orgs/stm32duino/discussions/2903)

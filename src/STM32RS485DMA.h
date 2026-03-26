@@ -22,8 +22,12 @@
 #define RS485_DMA_DCACHE_INVALIDATE(addr, size)
 #endif
 
-#if !(defined(STM32H7xx) || defined(STM32F7xx) || defined(STM32F4xx) || defined(STM32F2xx))
-//#error "STM32RS485DMA: Unsupported MCU family"
+#if !defined(STM32F2xx) && \
+    !defined(STM32F4xx) && \
+    !defined(STM32F7xx) && \
+    !defined(STM32H7xx) && \
+    !defined(STM32H747xx)
+#error "RS485DMA: Unsupported STM32 family (requires DMA streams: F2/F4/F7/H7)"
 #endif
 
 
