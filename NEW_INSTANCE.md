@@ -62,40 +62,6 @@ On STM32 Arduino cores, pins can be expressed as:
 
 Internally, all pins are converted to `PinName`.
 
-## Interrupt handling
-
-STM32 interrupt symbols are defined by the MCU startup files and cannot
-be registered dynamically.
-
-For this reason IRQ handlers must **forward to the RS485DMA instance**.
-
-> **Important:** Handler names must exactly match the symbols defined in the STM32 startup files, and must be declared with `extern "C"`.
-
-Typical pattern:
-
-```cpp
-extern "C" void USART3_IRQHandler(void)
-{
-    RS485.usartIrqHandler();
-}
-
-extern "C" void DMA1_Stream3_IRQHandler(void)
-{
-    RS485.txStreamIrqHandler();
-}
-
-```
-
-
-To determine which handlers are required for your configuration, you can call the following in `setup()`:
-
-```
-RS485.checkIrqHandlers(); 
-```
-
-This will print the required IRQ handler names to the serial monitor, which must then be defined in your sketch.
-
----
 
 
 ## Example
@@ -120,8 +86,113 @@ void setup()
         while(1);
     }
 }
-
 ```
+
+
+## Interrupt handling
+
+STM32 cores differ in how UART events can be intercepted:
+
+Some cores expose weak IRQ handlers (e.g. PlatformIO / STM32Duino)
+Others expose weak HAL callbacks instead (e.g. Arduino IDE STM32 core)
+
+Because of this, the library supports two integration methods.
+You only need to use one, depending on your platform.
+
+> **Important:** Handler names must exactly match the symbols defined in the STM32 startup files, and must be declared with `extern "C"`.
+
+### Option A — IRQ forwarding (recommended when available)
+
+If your core allows overriding IRQ handlers, forward them to the library:
+```cpp
+extern "C" void USART3_IRQHandler(void)
+{
+    RS485.usartIrqHandler();
+}
+
+extern "C" void DMA1_Stream3_IRQHandler(void)
+{
+    RS485.txStreamIrqHandler();
+}
+```
+
+
+Each UART/DMA used by your configuration must have its handler defined.
+
+To determine which handlers are required for your configuration, you can call the following in `setup()`:
+```cpp
+RS485.checkIrqHandlers();
+```
+
+This will print the exact handler names to add.
+
+## Option B — HAL callback forwarding
+
+If IRQ handlers are not overridable, use HAL callbacks instead:
+
+```cpp
+extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    RS485DMAClass::TxCpltCallback(huart);
+}
+
+extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size)
+{
+    RS485DMAClass::RxEventCallback(huart, size);
+}
+
+extern "C" void DMA1_Stream3_IRQHandler(void)
+{
+    RS485.txStreamIrqHandler();
+}
+```
+
+To determine which stream handlers are required for your configuration, you can also call the following in `setup()`:
+```cpp
+RS485.checkIrqHandlers();
+```
+When using callbacks, USART IRQ handlers are not required, but
+DMA stream IRQ handlers must still be defined.
+
+---
+
+Unlike IRQ handlers, only one declaration is needed, as the callback
+receives the UART instance and dispatches it internally.
+
+---
+
+
+⚠️ Callback conflicts
+
+HAL callbacks are global functions.
+If another library also defines them, only one implementation can exist.
+
+In that case, you must manually dispatch to all libraries:
+
+```cpp
+extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    RS485DMAClass::TxCpltCallback(huart);
+    OtherLib_TxCallback(huart); // if needed
+}
+```
+
+The same applies to RX callbacks.
+
+---
+
+Choosing the right method:
+- If compilation fails when defining IRQ handlers → use callbacks
+- If callbacks are not called or cannot be overridden → use IRQ forwarding
+
+
+Summary:
+
+- IRQ method → one handler per peripheral
+- Callback method → single global handler
+- Both paths are fully supported and equivalent internally
+
+---
 
 
 ## Advanced configuration (DMA stream override)
@@ -141,7 +212,9 @@ RS485DMA_config cfg = RS485DMA_config::fromPins(
 );
 ```
 
+
 ### Modbus compatibility
+---
 
 This library supports multiple `RS485DMAClass` instances, allowing
 several independent RS485 ports on the same board.

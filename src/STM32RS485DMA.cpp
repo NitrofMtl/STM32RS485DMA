@@ -1,10 +1,17 @@
 #include "STM32RS485DMA.h"
 #include "board_config/board_config.h"
 
+RS485DMAClass* RS485DMAClass::InstanceList[] = {nullptr};
 
 RS485DMAClass::RS485DMAClass(const RS485DMA_config* config, PinName dePin, PinName rePin)
 : _config(config), _dePin(dePin), _rePin(rePin)
 {
+    for (RS485DMAClass*& inst : InstanceList) { //add this instance to list for IRQ dispatching
+        if (inst == nullptr) {
+            inst = this;
+            break;
+        }
+    }
     //config invalidation move into config to help debuggin
 }
 
@@ -518,6 +525,59 @@ bool RS485DMAClass::DMATxTimeOut()
 }
 
 
+
+
+
+void RS485DMAClass::setRxIdleTime(uint32_t duration)
+{
+    uint32_t oneCharTime = getUsecForNChar(1);//idle IRQ take one char
+    if (duration <= oneCharTime) {
+        _rxIdleTime = 0;
+        return;
+    }
+    duration -= oneCharTime;
+    _rxIdleTime = duration;
+}
+
+
+float RS485DMAClass::getBitsPerChar()
+{
+    float bits = 1.0f; // Start bit always present
+
+    // --- Word length ---
+    switch (_huart.Init.WordLength) {
+#if defined(UART_WORDLENGTH_6B)
+        case UART_WORDLENGTH_6B: bits += 6.0f; break;
+#endif
+#if defined(UART_WORDLENGTH_7B)
+        case UART_WORDLENGTH_7B: bits += 7.0f; break;
+#endif
+        case UART_WORDLENGTH_8B: bits += 8.0f; break;
+        case UART_WORDLENGTH_9B: bits += 9.0f; break;
+        default: bits += 8.0f; break; // fallback
+    }
+
+    // --- Parity bit (always transmitted even if not stored) ---
+    if (_huart.Init.Parity != UART_PARITY_NONE)
+        bits += 1.0f;
+
+    // --- Stop bits ---
+    switch (_huart.Init.StopBits) {
+#ifdef UART_STOPBITS_0_5
+        case UART_STOPBITS_0_5: bits += 0.5f; break;
+#endif
+        case UART_STOPBITS_1:   bits += 1.0f; break;
+#ifdef UART_STOPBITS_1_5
+        case UART_STOPBITS_1_5: bits += 1.5f; break;
+#endif
+        case UART_STOPBITS_2:   bits += 2.0f; break;
+        default: bits += 1.0f; break; // fallback
+    }
+
+    return bits;
+}
+
+
 void RS485DMAClass::setupUsart(uint32_t baudrate)
 {
     // Reset DMAMUX if your MCU uses it
@@ -533,7 +593,6 @@ void RS485DMAClass::setupUsart(uint32_t baudrate)
 
     GPIO_InitTypeDef gi = _config->uart_gpio();
     HAL_GPIO_Init(port, &gi);
-
     _huart.Instance = _config->getUsartInstance();
     _huart.Init.BaudRate = baudrate;
     _huart.Init.WordLength = UART_WORDLENGTH_8B;
@@ -631,6 +690,36 @@ bool RS485DMAClass::initDMA(uint16_t config)
 }
 
 
+RS485DMAClass* RS485DMAClass::getInstanceForUart(UART_HandleTypeDef* uart)
+{
+    for (RS485DMAClass* inst : InstanceList) {
+        if (inst && inst->_huart.Instance == uart->Instance) {
+            return inst;
+        }
+    }
+    return nullptr;
+}
+
+
+void RS485DMAClass::TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    RS485DMAClass* inst = getInstanceForUart(huart);
+    if (inst) {
+        inst->onTxComplete();
+    }
+}
+
+
+void RS485DMAClass::RxEventCallback(UART_HandleTypeDef *huart, uint16_t size)
+{
+    (void)size; // unused, but could be used for optimizations if needed
+    RS485DMAClass* inst = getInstanceForUart(huart);
+    if (inst) {
+        inst->onRxIdleIRQ();
+    }
+}
+
+
 void RS485DMAClass::onRxIdleIRQ()
 { 
     _rxHead = dma_rx_head();
@@ -690,56 +779,6 @@ bool RS485DMAClass::isRxIdle()
     if (elapsed < _rxIdleTime) return false;
 
     return true;
-}
-
-
-void RS485DMAClass::setRxIdleTime(uint32_t duration)
-{
-    uint32_t oneCharTime = getUsecForNChar(1);//idle IRQ take one char
-    if (duration <= oneCharTime) {
-        _rxIdleTime = 0;
-        return;
-    }
-    duration -= oneCharTime;
-    _rxIdleTime = duration;
-}
-
-
-float RS485DMAClass::getBitsPerChar()
-{
-    float bits = 1.0f; // Start bit always present
-
-    // --- Word length ---
-    switch (_huart.Init.WordLength) {
-#if defined(UART_WORDLENGTH_6B)
-        case UART_WORDLENGTH_6B: bits += 6.0f; break;
-#endif
-#if defined(UART_WORDLENGTH_7B)
-        case UART_WORDLENGTH_7B: bits += 7.0f; break;
-#endif
-        case UART_WORDLENGTH_8B: bits += 8.0f; break;
-        case UART_WORDLENGTH_9B: bits += 9.0f; break;
-        default: bits += 8.0f; break; // fallback
-    }
-
-    // --- Parity bit (always transmitted even if not stored) ---
-    if (_huart.Init.Parity != UART_PARITY_NONE)
-        bits += 1.0f;
-
-    // --- Stop bits ---
-    switch (_huart.Init.StopBits) {
-#ifdef UART_STOPBITS_0_5
-        case UART_STOPBITS_0_5: bits += 0.5f; break;
-#endif
-        case UART_STOPBITS_1:   bits += 1.0f; break;
-#ifdef UART_STOPBITS_1_5
-        case UART_STOPBITS_1_5: bits += 1.5f; break;
-#endif
-        case UART_STOPBITS_2:   bits += 2.0f; break;
-        default: bits += 1.0f; break; // fallback
-    }
-
-    return bits;
 }
 
 

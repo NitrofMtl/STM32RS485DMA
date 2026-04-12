@@ -76,6 +76,8 @@
 #define RS485DMA_CLEAR_TXFECF_FLAGS(h)
 #endif
 
+#define MAX_RS485_INSTANCES 8
+
 #define RS485_DEFAULT_PREDELAY 50 // us
 #define RS485_DEFAULT_POSTDELAY 50  // µs
 #define RS485DMA_RXSTOP_GUARD_US 2000
@@ -147,6 +149,8 @@ class RS485DMAClass : public Stream {
   //ISR handlers
   void usartIrqHandler();
   void txStreamIrqHandler();
+  static void RxEventCallback(UART_HandleTypeDef *huart, uint16_t size);
+  static void TxCpltCallback(UART_HandleTypeDef *huart);
 
   private:
   const RS485DMA_config* _config;
@@ -177,6 +181,8 @@ class RS485DMAClass : public Stream {
     bool overflow = false;
   } volatile _frame;
 
+  static RS485DMAClass* InstanceList[MAX_RS485_INSTANCES];
+
   static constexpr size_t DMA_RX_BUFFER_SIZE = 256;
   static constexpr size_t DMA_TX_BUFFER_SIZE = 256;
 
@@ -192,15 +198,16 @@ class RS485DMAClass : public Stream {
   void invalidateRxCache(size_t offset, size_t length);
   void cleanTxDCache(size_t len);
 
-  void onRxIdleIRQ();
-  void onTxComplete();
-
   inline size_t dma_rx_head() const { 
     uint16_t remaining = __HAL_DMA_GET_COUNTER(&_hdma_rx);
     size_t head = DMA_RX_BUFFER_SIZE - remaining;
     if (head == DMA_RX_BUFFER_SIZE) head = 0;  // explicit wrap
     return head;
   }
+
+  static RS485DMAClass* getInstanceForUart(UART_HandleTypeDef* uart);
+  void onRxIdleIRQ();
+  void onTxComplete();
 
 };
 
