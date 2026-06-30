@@ -1,6 +1,21 @@
 # Changelog
 
 ---
+## [0.9.1] - 2026-06-28
+
+### Added
+-Tx complete callback function pointer
+
+### Fix
+-NoReceive idle handleing
+
+---
+## [0.9.0] - 2026-04-12
+
+### Added
+-added IRQ callbacks support
+
+---
 
 ## [0.8.0] - 2026-03-25
 

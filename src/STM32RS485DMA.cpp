@@ -253,7 +253,7 @@ void RS485DMAClass::receive()
 
 void RS485DMAClass::noReceive()
 {
-    flush();
+    while(!isRxIdle()){}//wait for rx to idle or timeout
 
     __HAL_UART_CLEAR_IDLEFLAG(&_huart);
     __HAL_UART_DISABLE_IT(&_huart, UART_IT_IDLE);
@@ -415,6 +415,12 @@ bool RS485DMAClass::hasValidConfig() const {
     if (_config->rxStream == nullptr) return false;
     if (_config->txStream == nullptr) return false;
     return true;
+}
+
+
+void RS485DMAClass::setOnTxCompleteCallback(void (*cb)())
+{
+    _onTxCompleteCallback = cb;
 }
 
 
@@ -742,6 +748,9 @@ void RS485DMAClass::onRxIdleIRQ()
 void RS485DMAClass::onTxComplete()
 {
     _txBusy = false;
+    if (_onTxCompleteCallback) {
+        _onTxCompleteCallback();
+    }
 }
 
 

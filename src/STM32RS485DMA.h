@@ -145,6 +145,7 @@ class RS485DMAClass : public Stream {
   void setConfig(const RS485DMA_config* cfg);
   bool hasValidConfig() const;
   void checkIrqHandlers() const;
+  void setOnTxCompleteCallback(void (*cb)());
 
   //ISR handlers
   void usartIrqHandler();
@@ -173,6 +174,8 @@ class RS485DMAClass : public Stream {
   uint8_t _rxTail = 0;
   bool _txBusy = false;
   bool _begun = false;
+
+  void (*_onTxCompleteCallback)() = nullptr;
   struct {
     uint32_t idleTimeStamp;
     uint8_t len = 0;

@@ -193,3 +193,27 @@ This ensures that:
 
 **Tip:** Always call `readFrame()` as soon as data is available to minimize dropped frames.
 
+---
+
+## TX Complete callback
+
+If needed, you can add a callback that fires the moment the hardware confirms
+transmission is complete (TC interrupt) — before any postdelay is applied.
+This is useful for protocols with strict turnaround timing (e.g. MS/TP, Modbus),
+where a silence/turnaround timer should be reset at the true end of transmission,
+not after your own postdelay has already elapsed.
+
+#### Usage
+
+```cpp
+void myTxCompleteCallback() {
+    my_protocol_silence_reset(); // e.g. reset a turnaround/silence timer
+}
+
+// In setup():
+RS485.onTxCompleteCallback(myTxCompleteCallback);
+```
+
+**Note:** this fires from interrupt context 
+    — keep it short and avoid blocking calls (e.g. `Serial.print`, `delay()`).
+    — Any variable shared between this callback and your main loop should be volatile.
