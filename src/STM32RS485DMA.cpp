@@ -248,6 +248,8 @@ void RS485DMAClass::receive()
 
     __HAL_UART_CLEAR_IDLEFLAG(&_huart);
     __HAL_UART_ENABLE_IT(&_huart, UART_IT_IDLE);
+
+     _rxHead = dma_rx_head();
 }
 
 
@@ -446,7 +448,7 @@ void RS485DMAClass::startNextTxChunk(size_t size)
 
     // Start DMA transmission
     if (HAL_UART_Transmit_DMA(&_huart, (uint8_t*)_dma_tx_buffer, size) != HAL_OK) {
-        Serial.println("[RS485LIB] HAL_UART_Transmit_DMA failed");
+        Serial.println("[RS485DMA] HAL_UART_Transmit_DMA failed");
         _txBusy = false;
         return;
     }
@@ -516,13 +518,13 @@ void RS485DMAClass::cleanTxDCache(size_t len)
 bool RS485DMAClass::DMATxTimeOut()
 {
     constexpr uint32_t TX_TIMEOUT_MARGIN_CHARS = 5;
-    uint32_t timeout = getUsecForNChar(DMA_TX_BUFFER_SIZE / 2 + TX_TIMEOUT_MARGIN_CHARS);
+    uint32_t timeout = getUsecForNChar(DMA_TX_BUFFER_SIZE + TX_TIMEOUT_MARGIN_CHARS);
     uint32_t start = micros();
     while (_txBusy) {
         if (micros() - start > timeout) {
             HAL_DMA_Abort(&_hdma_tx);
             _txBusy = false;
-            Serial.println("[RS485LIB] Tx timed out!!!");
+            Serial.println("[RS485DMA] Tx timed out!!!");
             return false;
         }
         yield();

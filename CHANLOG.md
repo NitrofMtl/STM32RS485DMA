@@ -1,6 +1,14 @@
 # Changelog
 
 ---
+
+## [0.10.0] - 2026-10-03
+
+### Fix
+- Fix RX DMA state synchronization when restarting reception
+- Fix RS485 DMA TX timeout for full-size DMA transfers
+
+---
 ## [0.9.1] - 2026-06-28
 
 ### Added
